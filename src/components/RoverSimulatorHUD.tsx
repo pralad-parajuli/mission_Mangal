@@ -13,6 +13,7 @@ import {
   Navigation,
   Pause,
   Play,
+  Radio,
   RotateCcw,
   Route as RouteIcon,
   ShieldAlert,
@@ -740,9 +741,9 @@ export default function RoverSimulatorHUD({
         )}
       </div>
 
-      {/* Left Instrument Cluster: Speed, Power & Life Support */}
+      {/* Left Instrument Cluster: Speed, Drivetrain, Power & Life Support */}
       <div className="absolute top-1/2 left-4 hidden -translate-y-1/2 space-y-2.5 sm:block">
-        <div className="w-44 rounded-lg border border-white/12 bg-[#0B0E17]/82 p-3 backdrop-blur-sm">
+        <div className="w-48 rounded-lg border border-white/12 bg-[#0B0E17]/84 p-3 backdrop-blur-sm">
           <div className="flex items-center justify-between text-[10px] tracking-wider text-slate-400 uppercase">
             <span>Ground Speed</span>
             <Gauge className="h-3 w-3 text-cyan-400" />
@@ -752,7 +753,7 @@ export default function RoverSimulatorHUD({
             <span className="ml-1.5 text-[11px] font-normal text-slate-400">km/h</span>
           </div>
           <div className="font-mono text-[10px] text-slate-400 tabular-nums">
-            {hud.speedMs.toFixed(2)} m/s · {hud.braking ? 'BRAKE' : driveMode === 'autopilot' ? 'AUTO CRUISE' : 'MANUAL'}
+            {hud.speedMs.toFixed(2)} m/s · Avg {hud.avgSpeedKmh.toFixed(1)} km/h
           </div>
 
           {hud.boosting && (
@@ -762,14 +763,32 @@ export default function RoverSimulatorHUD({
             </div>
           )}
 
+          {/* Drivetrain & Surface Grip */}
+          <div className="mt-2.5 grid grid-cols-3 gap-1 border-t border-white/10 pt-2 font-mono text-[10px] tabular-nums">
+            <div>
+              <div className="text-[9px] text-slate-500">WHEEL RPM</div>
+              <div className="text-slate-200">{Math.round(hud.wheelRpm)}</div>
+            </div>
+            <div>
+              <div className="text-[9px] text-slate-500">DRAW</div>
+              <div className="text-cyan-300">{hud.powerDrawKw.toFixed(1)} kW</div>
+            </div>
+            <div>
+              <div className="text-[9px] text-slate-500">SLIP</div>
+              <div className={hud.slipPct > 12 ? 'text-amber-300' : 'text-slate-200'}>
+                {hud.slipPct.toFixed(0)}%
+              </div>
+            </div>
+          </div>
+
           {/* Battery SOC */}
-          <div className="mt-3 border-t border-white/10 pt-2.5">
+          <div className="mt-2.5 border-t border-white/10 pt-2">
             <div className="mb-1 flex items-center justify-between font-mono text-[10px] tabular-nums">
               <span className="flex items-center gap-1 text-slate-300">
                 <BatteryCharging className="h-3 w-3 text-emerald-400" />
                 BATTERY
               </span>
-              <span className="text-emerald-300">{hud.batteryPct.toFixed(0)}%</span>
+              <span className="text-emerald-300">{hud.batteryPct.toFixed(1)}%</span>
             </div>
             <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/12">
               <div
@@ -781,14 +800,16 @@ export default function RoverSimulatorHUD({
             </div>
           </div>
 
-          {/* Cabin Oxygen */}
-          <div className="mt-2.5">
+          {/* Cabin Oxygen & Ambient Temp */}
+          <div className="mt-2">
             <div className="mb-1 flex items-center justify-between font-mono text-[10px] tabular-nums">
               <span className="flex items-center gap-1 text-slate-300">
                 <Wind className="h-3 w-3 text-cyan-400" />
                 CABIN O₂
               </span>
-              <span className="text-cyan-300">{hud.oxygenPct.toFixed(0)}%</span>
+              <span className="text-cyan-300">
+                {hud.oxygenPct.toFixed(1)}% · {hud.ambientTempC.toFixed(0)}°C
+              </span>
             </div>
             <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/12">
               <div
@@ -798,13 +819,42 @@ export default function RoverSimulatorHUD({
             </div>
           </div>
         </div>
+
+        {/* Live Transit Logbook */}
+        {hud.transitEvents.length > 0 && (
+          <div className="hidden lg:block w-48 rounded-lg border border-white/12 bg-[#0B0E17]/80 p-2.5 backdrop-blur-sm">
+            <div className="mb-1.5 text-[10px] font-medium tracking-wider text-slate-400 uppercase">
+              Traverse Logbook
+            </div>
+            <div className="space-y-1.5">
+              {hud.transitEvents.slice(0, 3).map((ev, idx) => (
+                <div key={`${ev.timeLabel}-${idx}`} className="text-[10px] leading-snug">
+                  <span className="font-mono text-slate-400">{ev.timeLabel}</span>{' '}
+                  <span
+                    className={
+                      ev.kind === 'warn'
+                        ? 'text-amber-300'
+                        : ev.kind === 'science'
+                        ? 'text-cyan-300'
+                        : ev.kind === 'relay'
+                        ? 'text-emerald-300'
+                        : 'text-slate-200'
+                    }
+                  >
+                    {ev.message}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Right Instrument Cluster: Terrain Inclinometer & Route Progress */}
+      {/* Right Instrument Cluster: Terrain Inclinometer, Elevation Sparkline & Satellite Relay */}
       <div className="absolute top-1/2 right-4 hidden -translate-y-1/2 space-y-2.5 sm:block">
-        <div className="w-44 rounded-lg border border-white/12 bg-[#0B0E17]/82 p-3 backdrop-blur-sm">
+        <div className="w-48 rounded-lg border border-white/12 bg-[#0B0E17]/84 p-3 backdrop-blur-sm">
           <div className="flex items-center justify-between text-[10px] tracking-wider text-slate-400 uppercase">
-            <span>Terrain Tilt</span>
+            <span>Terrain & Suspension</span>
             <Compass className="h-3 w-3 text-amber-400" />
           </div>
 
@@ -830,6 +880,9 @@ export default function RoverSimulatorHUD({
                 P {hud.pitchDeg >= 0 ? '+' : ''}
                 {hud.pitchDeg.toFixed(1)}° · R {hud.rollDeg.toFixed(1)}°
               </div>
+              <div className="text-[10px] text-cyan-300">
+                BOGIE {Math.round(hud.suspensionCompressionPct)}%
+              </div>
             </div>
           </div>
 
@@ -848,6 +901,71 @@ export default function RoverSimulatorHUD({
             <div className="mt-1 flex justify-between">
               <span className="text-slate-400">ETA ({timeScale}x)</span>
               <span className="text-cyan-300">{formatEtaSeconds(hud.etaSeconds)}</span>
+            </div>
+          </div>
+
+          {/* Live Route Elevation Profile Sparkline */}
+          {plannedRoute && plannedRoute.profile.length >= 2 && (
+            <div className="mt-2 border-t border-white/10 pt-2">
+              {(() => {
+                const pts = plannedRoute.profile.filter((pt) => pt.elevationM !== null);
+                if (pts.length < 2) return null;
+                const minE = Math.min(...pts.map((pt) => pt.elevationM as number));
+                const maxE = Math.max(...pts.map((pt) => pt.elevationM as number));
+                const spanE = Math.max(10, maxE - minE);
+                const w = 164;
+                const h = 30;
+                const polyPts = pts
+                  .map((pt, idx) => {
+                    const x = (idx / (pts.length - 1)) * w;
+                    const y = h - 3 - (((pt.elevationM as number) - minE) / spanE) * (h - 6);
+                    return `${x.toFixed(1)},${y.toFixed(1)}`;
+                  })
+                  .join(' ');
+                const progX = Math.max(0, Math.min(1, hud.progressPct / 100)) * w;
+                const curIdx = Math.min(
+                  pts.length - 1,
+                  Math.max(0, Math.round((hud.progressPct / 100) * (pts.length - 1)))
+                );
+                const progY =
+                  h - 3 - (((pts[curIdx].elevationM as number) - minE) / spanE) * (h - 6);
+                return (
+                  <div>
+                    <div className="mb-1 flex justify-between font-mono text-[9px] text-slate-400 tabular-nums">
+                      <span>GRADE PROFILE</span>
+                      <span>
+                        {Math.round(minE)}..{Math.round(maxE)}m
+                      </span>
+                    </div>
+                    <svg viewBox={`0 0 ${w} ${h}`} className="h-8 w-full overflow-visible">
+                      <polyline
+                        fill="none"
+                        stroke="rgba(34,211,238,0.55)"
+                        strokeWidth="1.5"
+                        points={polyPts}
+                      />
+                      <circle cx={progX} cy={progY} r="3" fill="#f59e0b" stroke="#0B0E17" strokeWidth="1" />
+                    </svg>
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+
+          {/* Overhead Orbiter Relay Link */}
+          <div className="mt-2 border-t border-white/10 pt-2 font-mono text-[10px] tabular-nums">
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-1 text-slate-400">
+                <Radio className="h-3 w-3 text-emerald-400" />
+                UHF RELAY
+              </span>
+              <span className={hud.relaySignalPct > 20 ? 'text-emerald-300' : 'text-amber-300'}>
+                {hud.relaySignalPct > 0 ? `${Math.round(hud.relaySignalPct)}%` : 'LOS Scan'}
+              </span>
+            </div>
+            <div className="mt-0.5 flex items-center justify-between text-[9px] text-slate-400">
+              <span>{hud.relaySatelliteName || 'Searching Orbiter'}</span>
+              <span>El {Math.round(hud.relayElevationDeg)}°</span>
             </div>
           </div>
 
@@ -987,11 +1105,17 @@ export default function RoverSimulatorHUD({
               </>
             )}
 
-            <div className="mt-5 grid grid-cols-3 gap-2 rounded-lg border border-white/10 bg-[#111827] p-3 font-mono text-xs tabular-nums">
+            <div className="mt-5 grid grid-cols-2 gap-2.5 rounded-lg border border-white/10 bg-[#111827] p-3 font-mono text-xs tabular-nums sm:grid-cols-4">
               <div>
                 <div className="text-[10px] text-slate-400">DRIVEN</div>
                 <div className="mt-0.5 font-semibold text-white">
                   {(hud.distanceTraveledM / 1000).toFixed(2)} km
+                </div>
+              </div>
+              <div>
+                <div className="text-[10px] text-slate-400">AVG SPEED</div>
+                <div className="mt-0.5 font-semibold text-cyan-300">
+                  {hud.avgSpeedKmh.toFixed(1)} km/h
                 </div>
               </div>
               <div>
@@ -1001,9 +1125,9 @@ export default function RoverSimulatorHUD({
                 </div>
               </div>
               <div>
-                <div className="text-[10px] text-slate-400">BATTERY / O₂</div>
+                <div className="text-[10px] text-slate-400">ENERGY USED</div>
                 <div className="mt-0.5 font-semibold text-emerald-300">
-                  {Math.round(hud.batteryPct)}% / {Math.round(hud.oxygenPct)}%
+                  {hud.energyUsedKwh.toFixed(2)} kWh
                 </div>
               </div>
             </div>

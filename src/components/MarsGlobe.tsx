@@ -23,7 +23,13 @@ import {
   RoverHudTelemetry,
   RoverSimStatus,
   RoverTouchInput,
+  RoverTransitEvent,
   RoverVehicleId,
+  SatelliteCameraMode,
+  SatelliteCraftId,
+  SatelliteHudTelemetry,
+  SatelliteSimStatus,
+  SatelliteTransitEvent,
   ScientificPoi,
 } from '../types/mars';
 import { Compass, Layers, Minus, Navigation, Plus } from 'lucide-react';
@@ -36,7 +42,9 @@ import {
 import { evaluateTerrainRisk } from '../analysis/riskScore';
 import { sampleElevationGrid } from '../analysis/elevation';
 import { FLIGHT_COURSES, FLIGHT_CRAFTS, playFlightCue } from '../data/flightCourses';
-import { playRoverCue, ROVER_VEHICLES } from '../data/roverMissions';
+import { formatRoverDuration, playRoverCue, ROVER_VEHICLES } from '../data/roverMissions';
+import { formatSatDuration, playSatCue, SATELLITE_CRAFTS } from '../data/satelliteMissions';
+import { MARS_LOCATIONS } from '../data/locations';
 import { SCIENTIFIC_POIS } from '../data/geologyAndEnvironment';
 
 // Match NASA Mars Trek EQ & NASA MMGIS datum: Mars_2000_Sphere_IAU (R = 3,396,190 m)
@@ -114,6 +122,22 @@ interface MarsGlobeProps {
   onRoverTogglePause?: () => void;
   onRoverToggleAutopilot?: () => void;
   onRoverExit?: () => void;
+  satelliteSim?: {
+    active: boolean;
+    craftId: SatelliteCraftId;
+    cameraMode: SatelliteCameraMode;
+    status: SatelliteSimStatus;
+    timeScale: 1 | 10 | 50 | 200;
+    muted: boolean;
+    runNonce: number;
+    start: MarsCoordinate;
+    destination: MarsCoordinate;
+  };
+  onSatelliteHudUpdate?: (hud: SatelliteHudTelemetry) => void;
+  onSatelliteStatusChange?: (status: SatelliteSimStatus) => void;
+  onSatelliteToggleCamera?: () => void;
+  onSatelliteTogglePause?: () => void;
+  onSatelliteExit?: () => void;
 }
 
 function createFallbackMarsTexture(): string {
@@ -252,6 +276,12 @@ export default function MarsGlobe({
   onRoverTogglePause,
   onRoverToggleAutopilot,
   onRoverExit,
+  satelliteSim,
+  onSatelliteHudUpdate,
+  onSatelliteStatusChange,
+  onSatelliteToggleCamera,
+  onSatelliteTogglePause,
+  onSatelliteExit,
 }: MarsGlobeProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<Cesium.Viewer | null>(null);
@@ -265,6 +295,7 @@ export default function MarsGlobe({
     graticule: Cesium.CustomDataSource;
     flightSim: Cesium.CustomDataSource;
     roverSim: Cesium.CustomDataSource;
+    satSim: Cesium.CustomDataSource;
   } | null>(null);
 
   const [cursorCoord, setCursorCoord] = useState<{ lat: number; lon: number; elevM: number | null } | null>(
@@ -303,6 +334,12 @@ export default function MarsGlobe({
     onRoverTogglePause,
     onRoverToggleAutopilot,
     onRoverExit,
+    satelliteSim,
+    onSatelliteHudUpdate,
+    onSatelliteStatusChange,
+    onSatelliteToggleCamera,
+    onSatelliteTogglePause,
+    onSatelliteExit,
   });
   callbackRefs.current = {
     onSelectCoordinate,
@@ -327,6 +364,12 @@ export default function MarsGlobe({
     onRoverTogglePause,
     onRoverToggleAutopilot,
     onRoverExit,
+    satelliteSim,
+    onSatelliteHudUpdate,
+    onSatelliteStatusChange,
+    onSatelliteToggleCamera,
+    onSatelliteTogglePause,
+    onSatelliteExit,
   };
 
   // Mutable 60fps flight physics state (never triggers React renders per-frame)
@@ -362,6 +405,8 @@ export default function MarsGlobe({
     lat: 18.4446,
     lon: 77.4509,
     groundElevOffsetM: 0,
+    startElevM: -2570 as number | null,
+    destElevM: -2540 as number | null,
     headingDeg: 270,
     pitchDeg: 0,
     rollDeg: 0,
@@ -372,6 +417,9 @@ export default function MarsGlobe({
     braking: false,
     batteryPct: 100,
     oxygenPct: 100,
+    energyUsedKwh: 0,
+    wheelSpinRad: 0,
+    steerAngleDeg: 0,
     distanceTraveledM: 0,
     totalRouteDistanceM: 7500,
     peakSlopeDeg: 0,
@@ -381,15 +429,63 @@ export default function MarsGlobe({
     lastHudEmitMs: 0,
     lastWarnSoundMs: 0,
     lastTrackDistM: 0,
+    lastDustDistM: 0,
+    lastSteepLoggedMs: -10000,
+    lastSciPoiLogged: null as string | null,
+    lastRelayLogged: false,
+    satOrbitalPos: Cesium.Cartesian3.fromDegrees(77.45, 18.45, 280000, MARS_ELLIPSOID),
+    satElevationDeg: 45,
+    satPhaseRad: 0.35,
     worldPos: Cesium.Cartesian3.fromDegrees(77.4509, 18.4446, 2, MARS_ELLIPSOID),
     trackLeftPts: [] as Cesium.Cartesian3[],
     trackRightPts: [] as Cesium.Cartesian3[],
+    traversedPts: [] as Cesium.Cartesian3[],
+    dustPts: [] as Cesium.Cartesian3[],
+    transitEvents: [] as RoverTransitEvent[],
     craftQuat: Cesium.Quaternion.IDENTITY.clone(),
     basisRight: new Cesium.Cartesian3(1, 0, 0),
     basisFwd: new Cesium.Cartesian3(0, 1, 0),
     basisUp: new Cesium.Cartesian3(0, 0, 1),
   });
   const roverKeysRef = useRef<Set<string>>(new Set());
+
+  // Mutable 60fps Satellite Transit physics state
+  const satPhysRef = useRef({
+    startUnit: new Cesium.Cartesian3(1, 0, 0),
+    destUnit: new Cesium.Cartesian3(0, 1, 0),
+    totalArcRad: 0.5,
+    totalDistanceKm: 1800,
+    progress: 0,
+    subLat: 18.4446,
+    subLon: 77.4509,
+    headingDeg: 110,
+    altitudeKm: 280,
+    orbitalSpeedKmS: 3.41,
+    groundSpeedKmS: 3.15,
+    scansCaptured: 0,
+    lastScanProgress: 0,
+    elapsedMs: 0,
+    lastHudEmitMs: 0,
+    lastRelayLogged: null as string | null,
+    worldPos: Cesium.Cartesian3.fromDegrees(77.4509, 18.4446, 280000, MARS_ELLIPSOID),
+    nadirPos: Cesium.Cartesian3.fromDegrees(77.4509, 18.4446, 200, MARS_ELLIPSOID),
+    orbitCompletedPts: [] as Cesium.Cartesian3[],
+    orbitRemainingPts: [] as Cesium.Cartesian3[],
+    groundTrackPts: [] as Cesium.Cartesian3[],
+    footprintPts: [] as Cesium.Cartesian3[],
+    beamCorner0: Cesium.Cartesian3.fromDegrees(77.45, 18.44, 0, MARS_ELLIPSOID),
+    beamCorner1: Cesium.Cartesian3.fromDegrees(77.45, 18.44, 0, MARS_ELLIPSOID),
+    beamCorner2: Cesium.Cartesian3.fromDegrees(77.45, 18.44, 0, MARS_ELLIPSOID),
+    beamCorner3: Cesium.Cartesian3.fromDegrees(77.45, 18.44, 0, MARS_ELLIPSOID),
+    relayTargetName: null as string | null,
+    relayTargetDistKm: null as number | null,
+    relayTargetPos: Cesium.Cartesian3.fromDegrees(77.45, 18.44, 0, MARS_ELLIPSOID),
+    craftQuat: Cesium.Quaternion.IDENTITY.clone(),
+    basisRight: new Cesium.Cartesian3(1, 0, 0),
+    basisFwd: new Cesium.Cartesian3(0, 1, 0),
+    basisUp: new Cesium.Cartesian3(0, 0, 1),
+    transitEvents: [] as SatelliteTransitEvent[],
+  });
 
   // Initialize CesiumJS Viewer once with Mars 2000 IAU Sphere
   useEffect(() => {
@@ -510,6 +606,7 @@ export default function MarsGlobe({
     const dsGraticule = new Cesium.CustomDataSource('graticule');
     const dsFlightSim = new Cesium.CustomDataSource('flight_sim');
     const dsRoverSim = new Cesium.CustomDataSource('rover_sim');
+    const dsSatSim = new Cesium.CustomDataSource('sat_sim');
 
     viewer.dataSources.add(dsGraticule);
     viewer.dataSources.add(dsHazards);
@@ -519,6 +616,7 @@ export default function MarsGlobe({
     viewer.dataSources.add(dsSelection);
     viewer.dataSources.add(dsFlightSim);
     viewer.dataSources.add(dsRoverSim);
+    viewer.dataSources.add(dsSatSim);
 
     dataSourceRefs.current = {
       missions: dsMissions,
@@ -529,6 +627,7 @@ export default function MarsGlobe({
       graticule: dsGraticule,
       flightSim: dsFlightSim,
       roverSim: dsRoverSim,
+      satSim: dsSatSim,
     };
 
     viewer.camera.percentageChanged = 0.01;
@@ -542,6 +641,7 @@ export default function MarsGlobe({
       if (callbackRefs.current.flightSim?.active) return;
       const isPickingRoutePoint = callbackRefs.current.pickMode !== 'inspect';
       if (callbackRefs.current.roverSim?.active && !isPickingRoutePoint) return;
+      if (callbackRefs.current.satelliteSim?.active && !isPickingRoutePoint) return;
       const picked = viewer.scene.pick(movement.position);
 
       if (!isPickingRoutePoint && Cesium.defined(picked) && picked.id && picked.id.properties) {
@@ -870,37 +970,146 @@ export default function MarsGlobe({
 
       if (isOrbiter) {
         const alt = mission.orbitAltitudeM || 300000;
+        const orbIdx = mission.id === 'mro' ? 0 : mission.id === 'odyssey' ? 1 : 2;
+        const periodMs = 95000 + orbIdx * 24000;
+        const phaseOffset = orbIdx * 2.1;
+
+        const computeOrbState = (tMs: number) => {
+          const theta = ((tMs % periodMs) / periodMs) * Math.PI * 2 + phaseOffset;
+          const incDrift = Math.sin(theta) * 4.5;
+          const latRad = Math.asin(Math.sin(theta) * 0.996); // ~93° sun-synchronous inclination
+          const latDeg = Cesium.Math.toDegrees(latRad);
+          const cosTheta = Math.cos(theta);
+          let lonDeg =
+            cosTheta >= 0 ? craftLon + incDrift : craftLon + 180 - incDrift;
+          if (lonDeg > 180) lonDeg -= 360;
+          if (lonDeg < -180) lonDeg += 360;
+
+          const nextTheta = theta + 0.03;
+          const nLatDeg = Cesium.Math.toDegrees(Math.asin(Math.sin(nextTheta) * 0.996));
+          let nLonDeg =
+            Math.cos(nextTheta) >= 0
+              ? craftLon + Math.sin(nextTheta) * 4.5
+              : craftLon + 180 - Math.sin(nextTheta) * 4.5;
+          if (nLonDeg > 180) nLonDeg -= 360;
+          if (nLonDeg < -180) nLonDeg += 360;
+
+          const hdg = marsBearingDeg(latDeg, lonDeg, nLatDeg, nLonDeg);
+          return { latDeg, lonDeg, hdg };
+        };
+
+        // Full orbital path ring (tilted sun-synchronous meridian)
         const orbitPts: Cesium.Cartesian3[] = [];
-        for (let lat = -88; lat <= 88; lat += 4) {
-          orbitPts.push(Cesium.Cartesian3.fromDegrees(craftLon, lat, alt, MARS_ELLIPSOID));
+        for (let s = 0; s <= 90; s++) {
+          const a = (s / 90) * Math.PI * 2;
+          const latD = Cesium.Math.toDegrees(Math.asin(Math.sin(a) * 0.996));
+          let lonD = Math.cos(a) >= 0 ? craftLon + Math.sin(a) * 4.5 : craftLon + 180 - Math.sin(a) * 4.5;
+          if (lonD > 180) lonD -= 360;
+          if (lonD < -180) lonD += 360;
+          orbitPts.push(Cesium.Cartesian3.fromDegrees(lonD, latD, alt, MARS_ELLIPSOID));
         }
-        for (let lat = 88; lat >= -88; lat -= 4) {
-          const oppLon = craftLon >= 0 ? craftLon - 180 : craftLon + 180;
-          orbitPts.push(Cesium.Cartesian3.fromDegrees(oppLon, lat, alt, MARS_ELLIPSOID));
-        }
-        orbitPts.push(Cesium.Cartesian3.fromDegrees(craftLon, -88, alt, MARS_ELLIPSOID));
 
         ds.entities.add({
           polyline: {
             positions: orbitPts,
-            width: 1.4,
+            width: 1.5,
             material: new Cesium.PolylineDashMaterialProperty({
-              color: mColor.withAlpha(0.55),
+              color: mColor.withAlpha(0.5),
               dashLength: 16,
             }),
           },
         });
 
-        const orbPos = Cesium.Cartesian3.fromDegrees(craftLon, craftLat, alt, MARS_ELLIPSOID);
-        const orbOrientation = Cesium.Transforms.headingPitchRollQuaternion(
-          orbPos,
-          new Cesium.HeadingPitchRoll(0, 0, 0),
-          MARS_ELLIPSOID
-        );
+        // Glowing trailing wake behind satellite
+        ds.entities.add({
+          polyline: {
+            positions: new Cesium.CallbackProperty(() => {
+              const tMs = performance.now();
+              const baseTheta = ((tMs % periodMs) / periodMs) * Math.PI * 2 + phaseOffset;
+              const pts: Cesium.Cartesian3[] = [];
+              for (let k = 12; k >= 0; k--) {
+                const th = baseTheta - k * 0.065;
+                const latD = Cesium.Math.toDegrees(Math.asin(Math.sin(th) * 0.996));
+                let lonD =
+                  Math.cos(th) >= 0 ? craftLon + Math.sin(th) * 4.5 : craftLon + 180 - Math.sin(th) * 4.5;
+                if (lonD > 180) lonD -= 360;
+                if (lonD < -180) lonD += 360;
+                pts.push(Cesium.Cartesian3.fromDegrees(lonD, latD, alt, MARS_ELLIPSOID));
+              }
+              return pts;
+            }, false) as unknown as Cesium.Property,
+            width: 3,
+            material: mColor.withAlpha(0.95),
+          },
+        });
+
+        // Nadir vertical laser line & surface scan swath box
+        ds.entities.add({
+          polyline: {
+            positions: new Cesium.CallbackProperty(() => {
+              const st = computeOrbState(performance.now());
+              return [
+                Cesium.Cartesian3.fromDegrees(st.lonDeg, st.latDeg, alt, MARS_ELLIPSOID),
+                Cesium.Cartesian3.fromDegrees(st.lonDeg, st.latDeg, 200, MARS_ELLIPSOID),
+              ];
+            }, false) as unknown as Cesium.Property,
+            width: 1.5,
+            material: mColor.withAlpha(0.5),
+          },
+        });
 
         ds.entities.add({
-          position: orbPos,
-          orientation: orbOrientation,
+          polygon: {
+            hierarchy: new Cesium.CallbackProperty(() => {
+              const st = computeOrbState(performance.now());
+              const dLat = 1.6;
+              const dLon = 1.6 / Math.max(0.25, Math.cos(Cesium.Math.toRadians(st.latDeg)));
+              return new Cesium.PolygonHierarchy(
+                Cesium.Cartesian3.fromDegreesArrayHeights(
+                  [
+                    st.lonDeg - dLon,
+                    st.latDeg - dLat,
+                    400,
+                    st.lonDeg + dLon,
+                    st.latDeg - dLat,
+                    400,
+                    st.lonDeg + dLon,
+                    st.latDeg + dLat,
+                    400,
+                    st.lonDeg - dLon,
+                    st.latDeg + dLat,
+                    400,
+                  ],
+                  MARS_ELLIPSOID
+                )
+              );
+            }, false) as unknown as Cesium.Property,
+            material: mColor.withAlpha(0.14),
+            outline: true,
+            outlineColor: mColor.withAlpha(0.65),
+            outlineWidth: 1.5,
+            perPositionHeight: true,
+          },
+        });
+
+        const orbPosProp = new Cesium.CallbackProperty(() => {
+          const st = computeOrbState(performance.now());
+          return Cesium.Cartesian3.fromDegrees(st.lonDeg, st.latDeg, alt, MARS_ELLIPSOID);
+        }, false) as unknown as Cesium.PositionProperty;
+
+        const orbOrientProp = new Cesium.CallbackProperty(() => {
+          const st = computeOrbState(performance.now());
+          const pos = Cesium.Cartesian3.fromDegrees(st.lonDeg, st.latDeg, alt, MARS_ELLIPSOID);
+          return Cesium.Transforms.headingPitchRollQuaternion(
+            pos,
+            new Cesium.HeadingPitchRoll(Cesium.Math.toRadians(st.hdg) - Math.PI / 2, 0, 0),
+            MARS_ELLIPSOID
+          );
+        }, false) as unknown as Cesium.Property;
+
+        ds.entities.add({
+          position: orbPosProp,
+          orientation: orbOrientProp,
           model:
             settings.showNasaModels && mission.modelKey
               ? {
@@ -919,7 +1128,7 @@ export default function MarsGlobe({
                 }
               : undefined,
           label: {
-            text: `${mission.name} (${Math.round(alt / 1000)} km Orbit)`,
+            text: `${mission.name} (${Math.round(alt / 1000)} km · LIVE ORBIT)`,
             font: '600 11px "IBM Plex Sans", sans-serif',
             fillColor: mColor,
             outlineColor: Cesium.Color.BLACK,
@@ -2477,7 +2686,7 @@ export default function MarsGlobe({
     }
   };
 
-  // Rover Simulator: Initialize route corridor, rover entity, wheel tracks, and spawn pose
+  // Rover Simulator: Initialize route corridor, detailed 3D rover, wheels, dust wake, Lidar, overhead relay, and spawn pose
   useEffect(() => {
     const viewer = viewerRef.current;
     const ds = dataSourceRefs.current?.roverSim;
@@ -2485,7 +2694,7 @@ export default function MarsGlobe({
 
     if (!roverSim?.active) {
       ds.entities.removeAll();
-      if (!flightSim?.active) {
+      if (!flightSim?.active && !satelliteSim?.active) {
         viewer.scene.screenSpaceCameraController.enableInputs = true;
       }
       return;
@@ -2529,10 +2738,28 @@ export default function MarsGlobe({
       MARS_ELLIPSOID
     );
 
+    const startElevM =
+      sampleElevationGrid(callbackRefs.current.elevationGrid, startLat, startLon).elevationM ?? null;
+    const destElevM =
+      sampleElevationGrid(
+        callbackRefs.current.elevationGrid,
+        roverSim.destination.lat,
+        roverSim.destination.lon
+      ).elevationM ?? null;
+
+    const initialOrbPos = Cesium.Cartesian3.fromDegrees(
+      startLon - 1.4,
+      startLat - 2.2,
+      280000,
+      MARS_ELLIPSOID
+    );
+
     roverPhysRef.current = {
       lat: startLat,
       lon: startLon,
       groundElevOffsetM: pose.hCenter,
+      startElevM,
+      destElevM,
       headingDeg: startHeading,
       pitchDeg: pose.pitchDeg,
       rollDeg: pose.rollDeg,
@@ -2543,6 +2770,9 @@ export default function MarsGlobe({
       braking: false,
       batteryPct: 100,
       oxygenPct: 100,
+      energyUsedKwh: 0,
+      wheelSpinRad: 0,
+      steerAngleDeg: 0,
       distanceTraveledM: 0,
       totalRouteDistanceM: Math.max(10, totalRouteDistM),
       peakSlopeDeg: pose.slopeDeg,
@@ -2552,21 +2782,37 @@ export default function MarsGlobe({
       lastHudEmitMs: 0,
       lastWarnSoundMs: 0,
       lastTrackDistM: 0,
+      lastDustDistM: 0,
+      lastSteepLoggedMs: -10000,
+      lastSciPoiLogged: null,
+      lastRelayLogged: false,
+      satOrbitalPos: initialOrbPos,
+      satElevationDeg: 58,
+      satPhaseRad: 0.35,
       worldPos,
       trackLeftPts: [worldPos],
       trackRightPts: [worldPos],
+      traversedPts: [worldPos],
+      dustPts: [],
+      transitEvents: [
+        {
+          timeLabel: '00:00',
+          message: `Ready at ${roverSim.start.label || 'Origin'}`,
+          kind: 'info',
+        },
+      ],
       craftQuat: Cesium.Quaternion.IDENTITY.clone(),
       basisRight: new Cesium.Cartesian3(1, 0, 0),
       basisFwd: new Cesium.Cartesian3(0, 1, 0),
       basisUp: new Cesium.Cartesian3(0, 0, 1),
     };
 
-    // Draw planned A->B corridor polyline
+    // Remaining Planned A->B corridor polyline (cyan dashed)
     const corridorPositions = rawWaypoints.map(([lon, lat]) =>
       Cesium.Cartesian3.fromDegrees(
         lon,
         lat,
-        getTerrainSurfaceOffsetAt(lat, lon) + 2.2,
+        getTerrainSurfaceOffsetAt(lat, lon) + 2.1,
         MARS_ELLIPSOID
       )
     );
@@ -2574,15 +2820,28 @@ export default function MarsGlobe({
       id: 'rover-corridor-line',
       polyline: {
         positions: corridorPositions,
-        width: 4,
+        width: 3.5,
         material: new Cesium.PolylineDashMaterialProperty({
-          color: Cesium.Color.fromCssColorString('#22d3ee').withAlpha(0.85),
+          color: Cesium.Color.fromCssColorString('#22d3ee').withAlpha(0.72),
           dashLength: 14,
         }),
       },
     });
 
-    // Intermediate waypoint beacons (sampled every few vertices so screen stays clean)
+    // Traversed emerald surface corridor wake
+    ds.entities.add({
+      id: 'rover-corridor-traversed',
+      polyline: {
+        positions: new Cesium.CallbackProperty(
+          () => roverPhysRef.current.traversedPts,
+          false
+        ) as unknown as Cesium.Property,
+        width: 5,
+        material: Cesium.Color.fromCssColorString('#22c55e').withAlpha(0.9),
+      },
+    });
+
+    // Illuminated Waypoint Beacons along route
     const stepStride = Math.max(1, Math.floor(rawWaypoints.length / 10));
     for (let i = stepStride; i < rawWaypoints.length - 1; i += stepStride) {
       const [wLon, wLat] = rawWaypoints[i];
@@ -2590,9 +2849,18 @@ export default function MarsGlobe({
       ds.entities.add({
         position: Cesium.Cartesian3.fromDegrees(wLon, wLat, wGround + 3, MARS_ELLIPSOID),
         point: {
-          pixelSize: 6,
+          pixelSize: 7,
           color: Cesium.Color.fromCssColorString('#22d3ee'),
           outlineColor: Cesium.Color.BLACK,
+          outlineWidth: 1.5,
+        },
+        ellipse: {
+          semiMajorAxis: 12,
+          semiMinorAxis: 12,
+          height: wGround + 1.5,
+          material: Cesium.Color.fromCssColorString('#22d3ee').withAlpha(0.14),
+          outline: true,
+          outlineColor: Cesium.Color.fromCssColorString('#22d3ee').withAlpha(0.65),
           outlineWidth: 1.5,
         },
       });
@@ -2636,7 +2904,7 @@ export default function MarsGlobe({
     const destBeaconTop = Cesium.Cartesian3.fromDegrees(
       roverSim.destination.lon,
       roverSim.destination.lat,
-      destH + 85,
+      destH + 95,
       MARS_ELLIPSOID
     );
     ds.entities.add({
@@ -2665,17 +2933,17 @@ export default function MarsGlobe({
     ds.entities.add({
       position: destGroundPos,
       ellipse: {
-        semiMajorAxis: 26,
-        semiMinorAxis: 26,
+        semiMajorAxis: 28,
+        semiMinorAxis: 28,
         height: destH + 1.5,
-        material: Cesium.Color.fromCssColorString('#f59e0b').withAlpha(0.18),
+        material: Cesium.Color.fromCssColorString('#f59e0b').withAlpha(0.22),
         outline: true,
-        outlineColor: Cesium.Color.fromCssColorString('#f59e0b').withAlpha(0.85),
+        outlineColor: Cesium.Color.fromCssColorString('#f59e0b').withAlpha(0.9),
         outlineWidth: 2,
       },
     });
 
-    // Dual Wheel Track Trails
+    // Dual Regolith Wheel Track Trails
     ds.entities.add({
       id: 'rover-track-left',
       polyline: {
@@ -2683,8 +2951,8 @@ export default function MarsGlobe({
           () => roverPhysRef.current.trackLeftPts,
           false
         ) as unknown as Cesium.Property,
-        width: 2.2,
-        material: Cesium.Color.fromCssColorString('#451a03').withAlpha(0.75),
+        width: 3,
+        material: Cesium.Color.fromCssColorString('#3b1808').withAlpha(0.82),
       },
     });
     ds.entities.add({
@@ -2694,8 +2962,113 @@ export default function MarsGlobe({
           () => roverPhysRef.current.trackRightPts,
           false
         ) as unknown as Cesium.Property,
-        width: 2.2,
-        material: Cesium.Color.fromCssColorString('#451a03').withAlpha(0.75),
+        width: 3,
+        material: Cesium.Color.fromCssColorString('#3b1808').withAlpha(0.82),
+      },
+    });
+
+    // Regolith Wheel Dust Plume Wake behind rear wheels
+    ds.entities.add({
+      id: 'rover-dust-wake',
+      polyline: {
+        positions: new Cesium.CallbackProperty(
+          () => roverPhysRef.current.dustPts,
+          false
+        ) as unknown as Cesium.Property,
+        width: 6,
+        material: Cesium.Color.fromCssColorString('#d97736').withAlpha(0.32),
+      },
+    });
+
+    // Helper for transforming local rover chassis coordinates (right, forward, up) -> world Cartesian3
+    const roverLocalPt = (rx: number, fy: number, uz: number) => {
+      const p = roverPhysRef.current;
+      const out = Cesium.Cartesian3.clone(p.worldPos);
+      Cesium.Cartesian3.add(
+        out,
+        Cesium.Cartesian3.multiplyByScalar(p.basisRight, rx, new Cesium.Cartesian3()),
+        out
+      );
+      Cesium.Cartesian3.add(
+        out,
+        Cesium.Cartesian3.multiplyByScalar(p.basisFwd, fy, new Cesium.Cartesian3()),
+        out
+      );
+      Cesium.Cartesian3.add(
+        out,
+        Cesium.Cartesian3.multiplyByScalar(p.basisUp, uz, new Cesium.Cartesian3()),
+        out
+      );
+      return out;
+    };
+
+    // Forward Terrain Lidar / Headlight Illumination Fan
+    ds.entities.add({
+      id: 'rover-lidar-cone',
+      polygon: {
+        hierarchy: new Cesium.CallbackProperty(() => {
+          return new Cesium.PolygonHierarchy([
+            roverLocalPt(-0.9, 2.8, 0.2),
+            roverLocalPt(0.9, 2.8, 0.2),
+            roverLocalPt(7.5, 24, -0.6),
+            roverLocalPt(0, 27, -0.6),
+            roverLocalPt(-7.5, 24, -0.6),
+          ]);
+        }, false) as unknown as Cesium.Property,
+        material: Cesium.Color.fromCssColorString('#22d3ee').withAlpha(0.14),
+        outline: true,
+        outlineColor: Cesium.Color.fromCssColorString('#67e8f9').withAlpha(0.35),
+        outlineWidth: 1,
+        perPositionHeight: true,
+      },
+    });
+
+    // Overhead MRO Relay Satellite + UHF RF Link Beam during Rover Travel
+    ds.entities.add({
+      id: 'rover-relay-orbiter',
+      position: new Cesium.CallbackProperty(
+        () => roverPhysRef.current.satOrbitalPos,
+        false
+      ) as unknown as Cesium.PositionProperty,
+      model: settings.showNasaModels
+        ? {
+            uri: '/api/models/mro.glb',
+            minimumPixelSize: 44,
+            maximumScale: 16000,
+          }
+        : undefined,
+      point: !settings.showNasaModels
+        ? {
+            pixelSize: 9,
+            color: Cesium.Color.fromCssColorString('#22d3ee'),
+            outlineColor: Cesium.Color.WHITE,
+            outlineWidth: 2,
+          }
+        : undefined,
+      label: {
+        text: 'MRO RELAY',
+        font: '600 10px "JetBrains Mono", monospace',
+        fillColor: Cesium.Color.fromCssColorString('#67e8f9'),
+        outlineColor: Cesium.Color.BLACK,
+        outlineWidth: 2.5,
+        style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+        pixelOffset: new Cesium.Cartesian2(0, -18),
+      },
+    });
+
+    ds.entities.add({
+      id: 'rover-relay-beam',
+      polyline: {
+        positions: new Cesium.CallbackProperty(() => {
+          const p = roverPhysRef.current;
+          if (p.satElevationDeg < 8) return [];
+          return [roverLocalPt(0, -0.8, 2.9), p.satOrbitalPos];
+        }, false) as unknown as Cesium.Property,
+        width: 1.8,
+        material: new Cesium.PolylineDashMaterialProperty({
+          color: Cesium.Color.fromCssColorString('#34d399').withAlpha(0.55),
+          dashLength: 18,
+        }),
       },
     });
 
@@ -2715,98 +3088,116 @@ export default function MarsGlobe({
         ) as unknown as Cesium.Property,
         model: {
           uri: '/api/models/perseverance.glb',
-          minimumPixelSize: 64,
+          minimumPixelSize: 72,
           maximumScale: 18,
         },
       });
     } else {
-      // Articulated 3D Pressurized Crew Rover SEV-6 wireframe/chassis in local rover frame
+      // Detailed Multi-Part 3D Ares SEV-6 Pressurized Crew Rover
+      // 1. Shaded Pressurized Habitat Roof & Deck Hull
+      ds.entities.add({
+        id: 'rover-sev-hull',
+        polygon: {
+          hierarchy: new Cesium.CallbackProperty(
+            () =>
+              new Cesium.PolygonHierarchy([
+                roverLocalPt(-1.55, -2.9, 2.35),
+                roverLocalPt(1.55, -2.9, 2.35),
+                roverLocalPt(1.55, 1.9, 2.35),
+                roverLocalPt(1.3, 3.1, 1.35),
+                roverLocalPt(-1.3, 3.1, 1.35),
+                roverLocalPt(-1.55, 1.9, 2.35),
+              ]),
+            false
+          ) as unknown as Cesium.Property,
+          material: Cesium.Color.fromCssColorString('#e2e8f0').withAlpha(0.92),
+          outline: true,
+          outlineColor: Cesium.Color.fromCssColorString('#94a3b8'),
+          outlineWidth: 1.5,
+          perPositionHeight: true,
+        },
+      });
+
+      // 2. Panoramic Forward Cockpit Glass Canopy
+      ds.entities.add({
+        id: 'rover-sev-canopy',
+        polygon: {
+          hierarchy: new Cesium.CallbackProperty(
+            () =>
+              new Cesium.PolygonHierarchy([
+                roverLocalPt(-1.35, 1.85, 2.25),
+                roverLocalPt(1.35, 1.85, 2.25),
+                roverLocalPt(1.25, 3.15, 1.1),
+                roverLocalPt(-1.25, 3.15, 1.1),
+              ]),
+            false
+          ) as unknown as Cesium.Property,
+          material: Cesium.Color.fromCssColorString('#0ea5e9').withAlpha(0.65),
+          outline: true,
+          outlineColor: Cesium.Color.fromCssColorString('#67e8f9'),
+          outlineWidth: 2,
+          perPositionHeight: true,
+        },
+      });
+
+      // 3. Lower Chassis Belly Frame & Aft Airlock Cage
       const sevFrameProp = new Cesium.CallbackProperty(() => {
-        const p = roverPhysRef.current;
-        const c = p.worldPos;
-        const r = p.basisRight;
-        const f = p.basisFwd;
-        const u = p.basisUp;
-        const pt = (rx: number, fy: number, uz: number) => {
-          const out = Cesium.Cartesian3.clone(c);
-          Cesium.Cartesian3.add(
-            out,
-            Cesium.Cartesian3.multiplyByScalar(r, rx, new Cesium.Cartesian3()),
-            out
-          );
-          Cesium.Cartesian3.add(
-            out,
-            Cesium.Cartesian3.multiplyByScalar(f, fy, new Cesium.Cartesian3()),
-            out
-          );
-          Cesium.Cartesian3.add(
-            out,
-            Cesium.Cartesian3.multiplyByScalar(u, uz, new Cesium.Cartesian3()),
-            out
-          );
-          return out;
-        };
-        // Cabin outer box + windshield + roof rack + 6-wheel suspension struts
         return [
-          pt(-1.6, -2.8, 0.3),
-          pt(1.6, -2.8, 0.3),
-          pt(1.6, 2.8, 0.3),
-          pt(-1.6, 2.8, 0.3),
-          pt(-1.6, -2.8, 0.3),
-          pt(-1.4, -2.5, 2.3),
-          pt(1.4, -2.5, 2.3),
-          pt(1.4, 2.2, 2.3),
-          pt(-1.4, 2.2, 2.3),
-          pt(-1.4, -2.5, 2.3),
-          pt(-1.6, 2.8, 0.3),
-          pt(-1.4, 2.2, 2.3),
-          pt(1.4, 2.2, 2.3),
-          pt(1.6, 2.8, 0.3),
-          pt(1.6, -2.8, 0.3),
-          pt(1.4, -2.5, 2.3),
+          roverLocalPt(-1.6, -2.9, 0.35),
+          roverLocalPt(1.6, -2.9, 0.35),
+          roverLocalPt(1.6, 3.0, 0.35),
+          roverLocalPt(-1.6, 3.0, 0.35),
+          roverLocalPt(-1.6, -2.9, 0.35),
+          roverLocalPt(-1.55, -2.9, 2.35),
+          roverLocalPt(1.55, -2.9, 2.35),
+          roverLocalPt(1.6, -2.9, 0.35),
+          // High-Gain Dish & Antenna Mast on roof
+          roverLocalPt(1.55, -2.9, 2.35),
+          roverLocalPt(0.7, -1.8, 2.35),
+          roverLocalPt(0.7, -1.8, 3.2),
+          roverLocalPt(0.2, -1.8, 3.5),
+          roverLocalPt(1.2, -1.8, 3.5),
+          roverLocalPt(0.7, -1.8, 3.2),
         ];
       }, false) as unknown as Cesium.Property;
 
+      // 4. 6 Articulated Rolling & Steerable Wheels (Left/Right x Front/Mid/Rear)
       const sevWheelsProp = new Cesium.CallbackProperty(() => {
         const p = roverPhysRef.current;
-        const c = p.worldPos;
-        const r = p.basisRight;
-        const f = p.basisFwd;
-        const u = p.basisUp;
-        const pt = (rx: number, fy: number, uz: number) => {
-          const out = Cesium.Cartesian3.clone(c);
-          Cesium.Cartesian3.add(
-            out,
-            Cesium.Cartesian3.multiplyByScalar(r, rx, new Cesium.Cartesian3()),
-            out
-          );
-          Cesium.Cartesian3.add(
-            out,
-            Cesium.Cartesian3.multiplyByScalar(f, fy, new Cesium.Cartesian3()),
-            out
-          );
-          Cesium.Cartesian3.add(
-            out,
-            Cesium.Cartesian3.multiplyByScalar(u, uz, new Cesium.Cartesian3()),
-            out
-          );
-          return out;
-        };
-        return [
-          pt(-2.1, 2.4, -0.4),
-          pt(2.1, 2.4, -0.4),
-          pt(2.1, 0, -0.4),
-          pt(-2.1, 0, -0.4),
-          pt(-2.1, -2.4, -0.4),
-          pt(2.1, -2.4, -0.4),
+        const spin = p.wheelSpinRad;
+        const steerRad = Cesium.Math.toRadians(p.steerAngleDeg);
+        const spokeF = Math.cos(spin) * 0.58;
+        const spokeU = Math.sin(spin) * 0.58;
+        const pts: Cesium.Cartesian3[] = [];
+        const axles: Array<{ y: number; steerMul: number }> = [
+          { y: 2.35, steerMul: 1 },
+          { y: 0, steerMul: 0 },
+          { y: -2.35, steerMul: -0.6 },
         ];
+        axles.forEach(({ y, steerMul }) => {
+          const st = steerRad * steerMul;
+          const sf = Math.cos(st);
+          const sr = Math.sin(st);
+          // Cross-axle bar
+          pts.push(roverLocalPt(-2.05, y, -0.35));
+          pts.push(roverLocalPt(2.05, y, -0.35));
+          [-2.1, 2.1].forEach((x) => {
+            // Suspension strut + spinning wheel tread diameter
+            pts.push(roverLocalPt(x * 0.8, y, 0.35));
+            pts.push(roverLocalPt(x, y, -0.35));
+            pts.push(roverLocalPt(x + sr * spokeF, y + sf * spokeF, -0.35 + spokeU));
+            pts.push(roverLocalPt(x - sr * spokeF, y - sf * spokeF, -0.35 - spokeU));
+            pts.push(roverLocalPt(x, y, -0.35));
+          });
+        });
+        return pts;
       }, false) as unknown as Cesium.Property;
 
       ds.entities.add({
         id: 'rover-sev-chassis',
         polyline: {
           positions: sevFrameProp,
-          width: 4,
+          width: 3.5,
           material: Cesium.Color.fromCssColorString('#f8fafc'),
         },
       });
@@ -2814,7 +3205,7 @@ export default function MarsGlobe({
         id: 'rover-sev-axles',
         polyline: {
           positions: sevWheelsProp,
-          width: 3,
+          width: 4.5,
           material: Cesium.Color.fromCssColorString('#22d3ee'),
         },
       });
@@ -2822,7 +3213,7 @@ export default function MarsGlobe({
         id: 'rover-sev-beacon',
         position: roverPosProp,
         point: {
-          pixelSize: 11,
+          pixelSize: 9,
           color: Cesium.Color.fromCssColorString('#22d3ee'),
           outlineColor: Cesium.Color.WHITE,
           outlineWidth: 2,
@@ -2848,15 +3239,16 @@ export default function MarsGlobe({
     callbackRefs.current.onRoverHudUpdate?.({
       lat: startLat,
       lon: startLon,
-      elevM:
-        sampleElevationGrid(callbackRefs.current.elevationGrid, startLat, startLon).elevationM ??
-        null,
+      elevM: startElevM,
+      startElevM,
+      destElevM,
       headingDeg: startHeading,
       pitchDeg: pose.pitchDeg,
       rollDeg: pose.rollDeg,
       slopeDeg: pose.slopeDeg,
       speedMs: 0,
       speedKmh: 0,
+      avgSpeedKmh: 0,
       throttle: 0,
       boosting: false,
       braking: false,
@@ -2864,6 +3256,15 @@ export default function MarsGlobe({
       timeScale: roverSim.timeScale,
       batteryPct: 100,
       oxygenPct: 100,
+      energyUsedKwh: 0,
+      wheelRpm: 0,
+      powerDrawKw: 0.4,
+      suspensionCompressionPct: 50,
+      slipPct: 0,
+      ambientTempC: -62,
+      relaySatelliteName: 'MRO Electra UHF',
+      relaySignalPct: 86,
+      relayElevationDeg: 58,
       distanceTraveledM: 0,
       distanceRemainingM: totalRouteDistM,
       totalRouteDistanceM: totalRouteDistM,
@@ -2879,6 +3280,7 @@ export default function MarsGlobe({
       nearbyPoiName: null,
       nearbyPoiDistM: null,
       elapsedMs: 0,
+      transitEvents: roverPhysRef.current.transitEvents,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
@@ -2899,12 +3301,17 @@ export default function MarsGlobe({
     const viewer = viewerRef.current;
     if (!ds || !viewer || !roverSim?.active) return;
     const hideInCabin = roverSim.cameraMode === 'cabin';
-    ['rover-player-model', 'rover-sev-chassis', 'rover-sev-axles', 'rover-sev-beacon'].forEach(
-      (id) => {
-        const ent = ds.entities.getById(id);
-        if (ent) ent.show = !hideInCabin;
-      }
-    );
+    [
+      'rover-player-model',
+      'rover-sev-hull',
+      'rover-sev-canopy',
+      'rover-sev-chassis',
+      'rover-sev-axles',
+      'rover-sev-beacon',
+    ].forEach((id) => {
+      const ent = ds.entities.getById(id);
+      if (ent) ent.show = !hideInCabin;
+    });
     if (roverSim.status !== 'setup') {
       updateRoverBasisAndCamera(viewer, roverSim.cameraMode, roverSim.vehicleId);
     }
@@ -3026,6 +3433,19 @@ export default function MarsGlobe({
 
       // Integrate surface coordinates along Mars sphere
       const stepDistM = p.speedMs * dt;
+      p.wheelSpinRad = (p.wheelSpinRad + stepDistM * 1.4) % (Math.PI * 2);
+      const targetSteerDeg =
+        sim.driveMode === 'autopilot'
+          ? Math.max(
+              -28,
+              Math.min(
+                28,
+                ((((nextWpBearing - p.headingDeg + 180) % 360) + 360) % 360 - 180) * 0.7
+              )
+            )
+          : steerInput * 26;
+      p.steerAngleDeg += (targetSteerDeg - p.steerAngleDeg) * (1 - Math.exp(-8 * rawDt));
+
       const hRad = Cesium.Math.toRadians(p.headingDeg);
       const dNorthM = stepDistM * Math.cos(hRad);
       const dEastM = stepDistM * Math.sin(hRad);
@@ -3058,30 +3478,70 @@ export default function MarsGlobe({
         MARS_ELLIPSOID
       );
 
+      // Overhead MRO Relay Satellite traveling across horizon
+      p.satPhaseRad += dt * 0.012;
+      const satLat = p.lat + Math.sin(p.satPhaseRad) * 6.5;
+      const satLon = p.lon + Math.cos(p.satPhaseRad) * 4.2;
+      p.satOrbitalPos = Cesium.Cartesian3.fromDegrees(satLon, satLat, 280000, MARS_ELLIPSOID);
+      const satGroundDist = Math.max(1000, marsDistanceMeters(p.lat, p.lon, satLat, satLon));
+      p.satElevationDeg = Math.max(
+        4,
+        Math.min(89, Cesium.Math.toDegrees(Math.atan2(280000, satGroundDist)))
+      );
+
       // Update local basis & camera
       updateRoverBasisAndCamera(viewer, sim.cameraMode, sim.vehicleId);
 
-      // Lay dual wheel tracks every ~6 m
-      if (p.distanceTraveledM - p.lastTrackDistM >= 6) {
+      // Lay dual wheel tracks & emerald traversed corridor every ~5 m
+      if (p.distanceTraveledM - p.lastTrackDistM >= 5) {
         p.lastTrackDistM = p.distanceTraveledM;
         const leftPt = Cesium.Cartesian3.add(
           p.worldPos,
-          Cesium.Cartesian3.multiplyByScalar(p.basisRight, -1.45, new Cesium.Cartesian3()),
+          Cesium.Cartesian3.multiplyByScalar(p.basisRight, -1.65, new Cesium.Cartesian3()),
           new Cesium.Cartesian3()
         );
         const rightPt = Cesium.Cartesian3.add(
           p.worldPos,
-          Cesium.Cartesian3.multiplyByScalar(p.basisRight, 1.45, new Cesium.Cartesian3()),
+          Cesium.Cartesian3.multiplyByScalar(p.basisRight, 1.65, new Cesium.Cartesian3()),
           new Cesium.Cartesian3()
         );
         p.trackLeftPts.push(leftPt);
         p.trackRightPts.push(rightPt);
-        if (p.trackLeftPts.length > 180) p.trackLeftPts.shift();
-        if (p.trackRightPts.length > 180) p.trackRightPts.shift();
+        p.traversedPts.push(Cesium.Cartesian3.clone(p.worldPos));
+        if (p.trackLeftPts.length > 420) p.trackLeftPts.shift();
+        if (p.trackRightPts.length > 420) p.trackRightPts.shift();
+        if (p.traversedPts.length > 420) p.traversedPts.shift();
       }
 
-      // Battery & O2 life-support consumption (gentle realistic drain + RTG/solar trickle)
+      // Billowing regolith wheel dust plume proportional to speed
+      if (Math.abs(p.speedMs) > 1.2 && p.distanceTraveledM - p.lastDustDistM >= 2.5) {
+        p.lastDustDistM = p.distanceTraveledM;
+        const rearWake = Cesium.Cartesian3.add(
+          p.worldPos,
+          Cesium.Cartesian3.multiplyByScalar(p.basisFwd, -3.2, new Cesium.Cartesian3()),
+          new Cesium.Cartesian3()
+        );
+        Cesium.Cartesian3.add(
+          rearWake,
+          Cesium.Cartesian3.multiplyByScalar(p.basisUp, -0.3, new Cesium.Cartesian3()),
+          rearWake
+        );
+        p.dustPts.push(rearWake);
+        if (p.dustPts.length > 14) p.dustPts.shift();
+      } else if (Math.abs(p.speedMs) < 0.8 && p.dustPts.length > 0) {
+        p.dustPts.shift();
+      }
+
+      // Chassis power (kW), wheel RPM, suspension load, slip & ambient temp
+      const wheelRpm = Math.abs(p.speedMs) * 14.5;
       const gradeFactor = 1 + Math.max(0, p.pitchDeg) / 14;
+      const powerDrawKw =
+        0.45 +
+        (Math.abs(p.speedMs) / Math.max(1, spec.maxSpeedMs)) *
+          6.8 *
+          gradeFactor *
+          (p.boosting ? 1.55 : 1.0);
+      p.energyUsedKwh += (powerDrawKw * dt) / 3600;
       const powerDrawPerSec =
         (Math.abs(p.speedMs) / Math.max(1, spec.maxSpeedMs)) *
         0.045 *
@@ -3090,10 +3550,49 @@ export default function MarsGlobe({
       p.batteryPct = Math.max(5, Math.min(100, p.batteryPct - (powerDrawPerSec - 0.008) * dt));
       p.oxygenPct = Math.max(15, p.oxygenPct - 0.0045 * dt);
 
+      const slipPct = Math.min(
+        38,
+        Math.abs(p.speedMs) > 0.4 ? Math.max(1.5, p.slopeDeg * 0.95 + (p.boosting ? 5.5 : 0)) : 0
+      );
+      const suspensionCompressionPct = Math.max(
+        20,
+        Math.min(92, 48 + p.pitchDeg * 1.1 + Math.abs(p.rollDeg) * 0.8)
+      );
+      const ambientTempC = -62 + Math.sin(p.elapsedMs * 0.0002) * 4;
+      const avgSpeedKmh =
+        p.elapsedMs > 500
+          ? (p.distanceTraveledM / ((p.elapsedMs / 1000) * sim.timeScale)) * 3.6
+          : 0;
+      const relaySignalPct =
+        p.satElevationDeg >= 8 ? Math.min(99, Math.max(24, 30 + p.satElevationDeg * 0.9)) : 0;
+
       const steepGradeWarning = p.slopeDeg >= 14;
       if (steepGradeWarning && now - p.lastWarnSoundMs > 2200) {
         p.lastWarnSoundMs = now;
         playRoverCue('warn', sim.muted);
+      }
+      if (steepGradeWarning && p.elapsedMs - p.lastSteepLoggedMs > 12000) {
+        p.lastSteepLoggedMs = p.elapsedMs;
+        p.transitEvents = [
+          {
+            timeLabel: formatRoverDuration(p.elapsedMs),
+            message: `Steep grade ${p.slopeDeg.toFixed(1)}° · Traction control active`,
+            kind: 'warn' as const,
+          },
+          ...p.transitEvents,
+        ].slice(0, 8);
+      }
+
+      if (relaySignalPct > 65 && !p.lastRelayLogged) {
+        p.lastRelayLogged = true;
+        p.transitEvents = [
+          {
+            timeLabel: formatRoverDuration(p.elapsedMs),
+            message: 'MRO UHF orbital relay locked',
+            kind: 'relay' as const,
+          },
+          ...p.transitEvents,
+        ].slice(0, 8);
       }
 
       // Check Arrival at Destination (< 24 m)
@@ -3106,18 +3605,29 @@ export default function MarsGlobe({
       if (newDestDistM <= 24) {
         p.speedMs = 0;
         playRoverCue('arrived', sim.muted);
+        const arrivedEvents: RoverTransitEvent[] = [
+          {
+            timeLabel: formatRoverDuration(p.elapsedMs),
+            message: `Arrived at ${sim.destination.label || 'Destination'}`,
+            kind: 'info' as const,
+          },
+          ...p.transitEvents,
+        ].slice(0, 8);
         callbackRefs.current.onRoverHudUpdate?.({
           lat: p.lat,
           lon: p.lon,
           elevM:
             sampleElevationGrid(callbackRefs.current.elevationGrid, p.lat, p.lon).elevationM ??
             null,
+          startElevM: p.startElevM,
+          destElevM: p.destElevM,
           headingDeg: p.headingDeg,
           pitchDeg: p.pitchDeg,
           rollDeg: p.rollDeg,
           slopeDeg: p.slopeDeg,
           speedMs: 0,
           speedKmh: 0,
+          avgSpeedKmh,
           throttle: 0,
           boosting: false,
           braking: true,
@@ -3125,6 +3635,15 @@ export default function MarsGlobe({
           timeScale: sim.timeScale,
           batteryPct: p.batteryPct,
           oxygenPct: p.oxygenPct,
+          energyUsedKwh: p.energyUsedKwh,
+          wheelRpm: 0,
+          powerDrawKw: 0.4,
+          suspensionCompressionPct,
+          slipPct: 0,
+          ambientTempC,
+          relaySatelliteName: relaySignalPct > 0 ? 'MRO Electra UHF' : null,
+          relaySignalPct,
+          relayElevationDeg: p.satElevationDeg,
           distanceTraveledM: p.distanceTraveledM,
           distanceRemainingM: 0,
           totalRouteDistanceM: p.totalRouteDistanceM,
@@ -3140,6 +3659,7 @@ export default function MarsGlobe({
           nearbyPoiName: null,
           nearbyPoiDistM: null,
           elapsedMs: p.elapsedMs,
+          transitEvents: arrivedEvents,
         });
         callbackRefs.current.onRoverStatusChange?.('arrived');
         return;
@@ -3160,6 +3680,17 @@ export default function MarsGlobe({
             nearbyPoiName = poi.name;
             nearbyPoiDistM = d;
           }
+        }
+        if (nearbyPoiName && p.lastSciPoiLogged !== nearbyPoiName) {
+          p.lastSciPoiLogged = nearbyPoiName;
+          p.transitEvents = [
+            {
+              timeLabel: formatRoverDuration(p.elapsedMs),
+              message: `Passing ${nearbyPoiName}`,
+              kind: 'science' as const,
+            },
+            ...p.transitEvents,
+          ].slice(0, 8);
         }
 
         // Compute remaining route distance from rover through remaining waypoints
@@ -3186,12 +3717,15 @@ export default function MarsGlobe({
           lat: p.lat,
           lon: p.lon,
           elevM,
+          startElevM: p.startElevM,
+          destElevM: p.destElevM,
           headingDeg: p.headingDeg,
           pitchDeg: p.pitchDeg,
           rollDeg: p.rollDeg,
           slopeDeg: p.slopeDeg,
           speedMs: p.speedMs,
           speedKmh: Math.abs(p.speedMs) * 3.6,
+          avgSpeedKmh,
           throttle: p.throttle,
           boosting: p.boosting,
           braking: p.braking,
@@ -3199,6 +3733,15 @@ export default function MarsGlobe({
           timeScale: sim.timeScale,
           batteryPct: p.batteryPct,
           oxygenPct: p.oxygenPct,
+          energyUsedKwh: p.energyUsedKwh,
+          wheelRpm,
+          powerDrawKw,
+          suspensionCompressionPct,
+          slipPct,
+          ambientTempC,
+          relaySatelliteName: relaySignalPct > 0 ? 'MRO Electra UHF' : null,
+          relaySignalPct,
+          relayElevationDeg: p.satElevationDeg,
           distanceTraveledM: p.distanceTraveledM,
           distanceRemainingM: remDistM,
           totalRouteDistanceM: p.totalRouteDistanceM,
@@ -3214,6 +3757,7 @@ export default function MarsGlobe({
           nearbyPoiName,
           nearbyPoiDistM,
           elapsedMs: p.elapsedMs,
+          transitEvents: p.transitEvents,
         });
       }
 
@@ -3223,6 +3767,736 @@ export default function MarsGlobe({
     rafId = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafId);
   }, [roverSim?.active, roverSim?.status, pickMode]);
+
+  // Satellite Transit Simulator: Keyboard shortcuts
+  useEffect(() => {
+    if (!satelliteSim?.active) return;
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.repeat) return;
+      const key = e.key.toLowerCase();
+      if (key === 'c') {
+        callbackRefs.current.onSatelliteToggleCamera?.();
+      } else if (key === 'p' || e.code === 'Space') {
+        const st = callbackRefs.current.satelliteSim?.status;
+        if (st === 'orbiting' || st === 'paused') {
+          e.preventDefault();
+          callbackRefs.current.onSatelliteTogglePause?.();
+        }
+      } else if (e.code === 'Escape') {
+        callbackRefs.current.onSatelliteExit?.();
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [satelliteSim?.active]);
+
+  // Helper: evaluate satellite slerp position, ground nadir point, swath corners, and camera
+  const evaluateSatFrame = (
+    viewer: Cesium.Viewer,
+    craftId: SatelliteCraftId,
+    camMode: SatelliteCameraMode,
+    progress: number
+  ) => {
+    const spec = SATELLITE_CRAFTS[craftId];
+    const p = satPhysRef.current;
+    const altM = spec.altitudeKm * 1000;
+    const orbitRadius = MARS_EQUATORIAL_RADIUS_M + altM;
+
+    const slerpUnit = (u0: Cesium.Cartesian3, u1: Cesium.Cartesian3, t: number) => {
+      const clampedT = Math.max(0, Math.min(1, t));
+      const lerped = Cesium.Cartesian3.lerp(u0, u1, clampedT, new Cesium.Cartesian3());
+      return Cesium.Cartesian3.normalize(lerped, new Cesium.Cartesian3());
+    };
+
+    const uCur = slerpUnit(p.startUnit, p.destUnit, progress);
+    const uNext = slerpUnit(p.startUnit, p.destUnit, Math.min(1, progress + 0.004));
+    const uPrev = slerpUnit(p.startUnit, p.destUnit, Math.max(0, progress - 0.004));
+
+    const worldPos = Cesium.Cartesian3.multiplyByScalar(uCur, orbitRadius, new Cesium.Cartesian3());
+    const nadirPos = Cesium.Cartesian3.multiplyByScalar(
+      uCur,
+      MARS_EQUATORIAL_RADIUS_M + 800,
+      new Cesium.Cartesian3()
+    );
+
+    const curCarto = MARS_ELLIPSOID.cartesianToCartographic(nadirPos);
+    const nextCarto = MARS_ELLIPSOID.cartesianToCartographic(
+      Cesium.Cartesian3.multiplyByScalar(uNext, MARS_EQUATORIAL_RADIUS_M + 800, new Cesium.Cartesian3())
+    );
+    const prevCarto = MARS_ELLIPSOID.cartesianToCartographic(
+      Cesium.Cartesian3.multiplyByScalar(uPrev, MARS_EQUATORIAL_RADIUS_M + 800, new Cesium.Cartesian3())
+    );
+
+    const subLat = curCarto ? Cesium.Math.toDegrees(curCarto.latitude) : 0;
+    const subLon = curCarto ? Cesium.Math.toDegrees(curCarto.longitude) : 0;
+    const fwdHdg =
+      progress < 0.996 && curCarto && nextCarto
+        ? marsBearingDeg(
+            Cesium.Math.toDegrees(curCarto.latitude),
+            Cesium.Math.toDegrees(curCarto.longitude),
+            Cesium.Math.toDegrees(nextCarto.latitude),
+            Cesium.Math.toDegrees(nextCarto.longitude)
+          )
+        : prevCarto && curCarto
+        ? marsBearingDeg(
+            Cesium.Math.toDegrees(prevCarto.latitude),
+            Cesium.Math.toDegrees(prevCarto.longitude),
+            Cesium.Math.toDegrees(curCarto.latitude),
+            Cesium.Math.toDegrees(curCarto.longitude)
+          )
+        : p.headingDeg;
+
+    p.subLat = subLat;
+    p.subLon = subLon;
+    p.headingDeg = fwdHdg;
+    p.worldPos = worldPos;
+    p.nadirPos = nadirPos;
+
+    // Local satellite orbital frame
+    const worldUp = Cesium.Cartesian3.clone(uCur);
+    const rawVel = Cesium.Cartesian3.subtract(uNext, uPrev, new Cesium.Cartesian3());
+    const worldFwd =
+      Cesium.Cartesian3.magnitudeSquared(rawVel) > 1e-12
+        ? Cesium.Cartesian3.normalize(rawVel, new Cesium.Cartesian3())
+        : Cesium.Cartesian3.clone(p.basisFwd);
+    const worldRight = Cesium.Cartesian3.normalize(
+      Cesium.Cartesian3.cross(worldFwd, worldUp, new Cesium.Cartesian3()),
+      new Cesium.Cartesian3()
+    );
+    p.basisUp = worldUp;
+    p.basisFwd = worldFwd;
+    p.basisRight = worldRight;
+
+    p.craftQuat = Cesium.Transforms.headingPitchRollQuaternion(
+      worldPos,
+      new Cesium.HeadingPitchRoll(Cesium.Math.toRadians(fwdHdg) - Math.PI / 2, 0, 0),
+      MARS_ELLIPSOID
+    );
+
+    // 4-corner swath scanning footprint on Mars surface below
+    const halfSwathM = Math.max(45000, spec.swathWidthKm * 1800);
+    const cornerAt = (rx: number, fy: number) => {
+      const pt = Cesium.Cartesian3.clone(nadirPos);
+      Cesium.Cartesian3.add(
+        pt,
+        Cesium.Cartesian3.multiplyByScalar(worldRight, rx, new Cesium.Cartesian3()),
+        pt
+      );
+      Cesium.Cartesian3.add(
+        pt,
+        Cesium.Cartesian3.multiplyByScalar(worldFwd, fy, new Cesium.Cartesian3()),
+        pt
+      );
+      const unit = Cesium.Cartesian3.normalize(pt, new Cesium.Cartesian3());
+      return Cesium.Cartesian3.multiplyByScalar(unit, MARS_EQUATORIAL_RADIUS_M + 1200, new Cesium.Cartesian3());
+    };
+    const c0 = cornerAt(-halfSwathM, halfSwathM);
+    const c1 = cornerAt(halfSwathM, halfSwathM);
+    const c2 = cornerAt(halfSwathM, -halfSwathM);
+    const c3 = cornerAt(-halfSwathM, -halfSwathM);
+    p.beamCorner0 = c0;
+    p.beamCorner1 = c1;
+    p.beamCorner2 = c2;
+    p.beamCorner3 = c3;
+    p.footprintPts = [c0, c1, c2, c3];
+
+    // Completed & remaining arc polylines
+    const compPts: Cesium.Cartesian3[] = [];
+    const compSteps = 32;
+    for (let i = 0; i <= compSteps; i++) {
+      const u = slerpUnit(p.startUnit, p.destUnit, (progress * i) / compSteps);
+      compPts.push(Cesium.Cartesian3.multiplyByScalar(u, orbitRadius, new Cesium.Cartesian3()));
+    }
+    p.orbitCompletedPts = compPts;
+
+    const remPts: Cesium.Cartesian3[] = [];
+    const remSteps = 32;
+    for (let i = 0; i <= remSteps; i++) {
+      const t = progress + ((1 - progress) * i) / remSteps;
+      const u = slerpUnit(p.startUnit, p.destUnit, t);
+      remPts.push(Cesium.Cartesian3.multiplyByScalar(u, orbitRadius, new Cesium.Cartesian3()));
+    }
+    p.orbitRemainingPts = remPts;
+
+    // Camera tracking modes
+    if (camMode === 'nadir') {
+      const camPos = Cesium.Cartesian3.add(
+        worldPos,
+        Cesium.Cartesian3.multiplyByScalar(worldUp, -4500, new Cesium.Cartesian3()),
+        new Cesium.Cartesian3()
+      );
+      const downDir = Cesium.Cartesian3.normalize(
+        Cesium.Cartesian3.negate(worldUp, new Cesium.Cartesian3()),
+        new Cesium.Cartesian3()
+      );
+      viewer.camera.setView({
+        destination: camPos,
+        orientation: { direction: downDir, up: worldFwd },
+      });
+    } else if (camMode === 'horizon') {
+      const camPos = Cesium.Cartesian3.add(
+        Cesium.Cartesian3.add(
+          worldPos,
+          Cesium.Cartesian3.multiplyByScalar(worldRight, 260000, new Cesium.Cartesian3()),
+          new Cesium.Cartesian3()
+        ),
+        Cesium.Cartesian3.multiplyByScalar(worldUp, 75000, new Cesium.Cartesian3()),
+        new Cesium.Cartesian3()
+      );
+      const lookDir = Cesium.Cartesian3.normalize(
+        Cesium.Cartesian3.subtract(nadirPos, camPos, new Cesium.Cartesian3()),
+        new Cesium.Cartesian3()
+      );
+      viewer.camera.setView({
+        destination: camPos,
+        orientation: { direction: lookDir, up: worldUp },
+      });
+    } else {
+      const camPos = Cesium.Cartesian3.add(
+        Cesium.Cartesian3.add(
+          worldPos,
+          Cesium.Cartesian3.multiplyByScalar(worldFwd, -125000, new Cesium.Cartesian3()),
+          new Cesium.Cartesian3()
+        ),
+        Cesium.Cartesian3.multiplyByScalar(worldUp, 52000, new Cesium.Cartesian3()),
+        new Cesium.Cartesian3()
+      );
+      const lookTarget = Cesium.Cartesian3.add(
+        nadirPos,
+        Cesium.Cartesian3.multiplyByScalar(worldFwd, 180000, new Cesium.Cartesian3()),
+        new Cesium.Cartesian3()
+      );
+      const lookDir = Cesium.Cartesian3.normalize(
+        Cesium.Cartesian3.subtract(lookTarget, camPos, new Cesium.Cartesian3()),
+        new Cesium.Cartesian3()
+      );
+      viewer.camera.setView({
+        destination: camPos,
+        orientation: { direction: lookDir, up: worldUp },
+      });
+    }
+  };
+
+  // Satellite Transit Simulator: Initialize A->B orbital arc, swath pyramid, surface beacons & 3D orbiter
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    const ds = dataSourceRefs.current?.satSim;
+    if (!viewer || !ds) return;
+
+    if (!satelliteSim?.active) {
+      ds.entities.removeAll();
+      if (!flightSim?.active && !roverSim?.active) {
+        viewer.scene.screenSpaceCameraController.enableInputs = true;
+      }
+      return;
+    }
+
+    if (satelliteSim.status === 'setup' && pickMode !== 'inspect') {
+      viewer.scene.screenSpaceCameraController.enableInputs = true;
+      return;
+    }
+
+    ds.entities.removeAll();
+
+    const spec = SATELLITE_CRAFTS[satelliteSim.craftId];
+    const pStart = Cesium.Cartesian3.fromDegrees(
+      satelliteSim.start.lon,
+      satelliteSim.start.lat,
+      MARS_EQUATORIAL_RADIUS_M,
+      MARS_ELLIPSOID
+    );
+    const pDest = Cesium.Cartesian3.fromDegrees(
+      satelliteSim.destination.lon,
+      satelliteSim.destination.lat,
+      MARS_EQUATORIAL_RADIUS_M,
+      MARS_ELLIPSOID
+    );
+    const u0 = Cesium.Cartesian3.normalize(pStart, new Cesium.Cartesian3());
+    const u1 = Cesium.Cartesian3.normalize(pDest, new Cesium.Cartesian3());
+    const distM = marsDistanceMeters(
+      satelliteSim.start.lat,
+      satelliteSim.start.lon,
+      satelliteSim.destination.lat,
+      satelliteSim.destination.lon
+    );
+    const totalKm = Math.max(50, distM / 1000);
+    const groundSpeedKmS =
+      spec.orbitalSpeedKmS *
+      (MARS_EQUATORIAL_RADIUS_M / (MARS_EQUATORIAL_RADIUS_M + spec.altitudeKm * 1000));
+
+    // Precompute full surface ground track
+    const gTrack: Cesium.Cartesian3[] = [];
+    for (let i = 0; i <= 48; i++) {
+      const u = Cesium.Cartesian3.normalize(
+        Cesium.Cartesian3.lerp(u0, u1, i / 48, new Cesium.Cartesian3()),
+        new Cesium.Cartesian3()
+      );
+      gTrack.push(
+        Cesium.Cartesian3.multiplyByScalar(u, MARS_EQUATORIAL_RADIUS_M + 1600, new Cesium.Cartesian3())
+      );
+    }
+
+    satPhysRef.current = {
+      ...satPhysRef.current,
+      startUnit: u0,
+      destUnit: u1,
+      totalArcRad: distM / MARS_EQUATORIAL_RADIUS_M,
+      totalDistanceKm: totalKm,
+      progress: 0,
+      altitudeKm: spec.altitudeKm,
+      orbitalSpeedKmS: spec.orbitalSpeedKmS,
+      groundSpeedKmS,
+      scansCaptured: 0,
+      lastScanProgress: 0,
+      elapsedMs: 0,
+      lastHudEmitMs: 0,
+      lastRelayLogged: null,
+      groundTrackPts: gTrack,
+      relayTargetName: null,
+      relayTargetDistKm: null,
+      transitEvents: [
+        {
+          timeLabel: '00:00',
+          message: `Tasked ${spec.shortName}: ${satelliteSim.start.label || 'Origin'} → ${
+            satelliteSim.destination.label || 'Target'
+          }`,
+          kind: 'info',
+        },
+      ],
+    };
+
+    evaluateSatFrame(viewer, satelliteSim.craftId, satelliteSim.cameraMode, 0);
+
+    // Completed & remaining orbital trajectories
+    ds.entities.add({
+      polyline: {
+        positions: new Cesium.CallbackProperty(
+          () => satPhysRef.current.orbitCompletedPts,
+          false
+        ) as unknown as Cesium.Property,
+        width: 4.5,
+        material: Cesium.Color.fromCssColorString('#34d399').withAlpha(0.95),
+      },
+    });
+    ds.entities.add({
+      polyline: {
+        positions: new Cesium.CallbackProperty(
+          () => satPhysRef.current.orbitRemainingPts,
+          false
+        ) as unknown as Cesium.Property,
+        width: 2.5,
+        material: new Cesium.PolylineDashMaterialProperty({
+          color: Cesium.Color.fromCssColorString('#38bdf8').withAlpha(0.85),
+          dashLength: 18,
+        }),
+      },
+    });
+
+    // Sub-satellite surface ground track
+    ds.entities.add({
+      polyline: {
+        positions: gTrack,
+        width: 2.2,
+        material: new Cesium.PolylineDashMaterialProperty({
+          color: Cesium.Color.fromCssColorString('#f59e0b').withAlpha(0.65),
+          dashLength: 14,
+        }),
+      },
+    });
+
+    // Nadir laser beam + 4-beam swath scanning pyramid + surface scan polygon
+    ds.entities.add({
+      polyline: {
+        positions: new Cesium.CallbackProperty(() => {
+          const p = satPhysRef.current;
+          return [p.worldPos, p.nadirPos];
+        }, false) as unknown as Cesium.Property,
+        width: 1.8,
+        material: Cesium.Color.fromCssColorString('#22d3ee').withAlpha(0.6),
+      },
+    });
+    [0, 1, 2, 3].forEach((ci) => {
+      ds.entities.add({
+        polyline: {
+          positions: new Cesium.CallbackProperty(() => {
+            const p = satPhysRef.current;
+            const corner =
+              ci === 0
+                ? p.beamCorner0
+                : ci === 1
+                ? p.beamCorner1
+                : ci === 2
+                ? p.beamCorner2
+                : p.beamCorner3;
+            return [p.worldPos, corner];
+          }, false) as unknown as Cesium.Property,
+          width: 1.3,
+          material: Cesium.Color.fromCssColorString(spec.accentColor).withAlpha(0.45),
+        },
+      });
+    });
+    ds.entities.add({
+      polygon: {
+        hierarchy: new Cesium.CallbackProperty(
+          () => new Cesium.PolygonHierarchy(satPhysRef.current.footprintPts),
+          false
+        ) as unknown as Cesium.Property,
+        material: Cesium.Color.fromCssColorString(spec.accentColor).withAlpha(0.18),
+        outline: true,
+        outlineColor: Cesium.Color.fromCssColorString(spec.accentColor).withAlpha(0.85),
+        outlineWidth: 2,
+        perPositionHeight: true,
+      },
+    });
+
+    // Dynamic RF link beam to surface rovers/stations when within horizon
+    ds.entities.add({
+      polyline: {
+        positions: new Cesium.CallbackProperty(() => {
+          const p = satPhysRef.current;
+          if (!p.relayTargetName) return [];
+          return [p.worldPos, p.relayTargetPos];
+        }, false) as unknown as Cesium.Property,
+        width: 2.2,
+        material: new Cesium.PolylineDashMaterialProperty({
+          color: Cesium.Color.fromCssColorString('#10b981').withAlpha(0.9),
+          dashLength: 16,
+        }),
+      },
+    });
+
+    // Entry (A) & Target (B) orbital pass pillars
+    ds.entities.add({
+      position: Cesium.Cartesian3.fromDegrees(
+        satelliteSim.start.lon,
+        satelliteSim.start.lat,
+        1500,
+        MARS_ELLIPSOID
+      ),
+      point: {
+        pixelSize: 10,
+        color: Cesium.Color.fromCssColorString('#22c55e'),
+        outlineColor: Cesium.Color.WHITE,
+        outlineWidth: 2,
+      },
+      label: {
+        text: `ENTRY · ${satelliteSim.start.label || 'Origin'}`,
+        font: '600 11px "JetBrains Mono", monospace',
+        fillColor: Cesium.Color.fromCssColorString('#86efac'),
+        outlineColor: Cesium.Color.BLACK,
+        outlineWidth: 3,
+        style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+        pixelOffset: new Cesium.Cartesian2(0, -18),
+      },
+    });
+    const satDestBase = Cesium.Cartesian3.fromDegrees(
+      satelliteSim.destination.lon,
+      satelliteSim.destination.lat,
+      1500,
+      MARS_ELLIPSOID
+    );
+    const satDestOrb = Cesium.Cartesian3.fromDegrees(
+      satelliteSim.destination.lon,
+      satelliteSim.destination.lat,
+      spec.altitudeKm * 1000,
+      MARS_ELLIPSOID
+    );
+    ds.entities.add({
+      polyline: {
+        positions: [satDestBase, satDestOrb],
+        width: 2,
+        material: new Cesium.PolylineDashMaterialProperty({
+          color: Cesium.Color.fromCssColorString('#f59e0b').withAlpha(0.75),
+          dashLength: 14,
+        }),
+      },
+      position: satDestBase,
+      point: {
+        pixelSize: 12,
+        color: Cesium.Color.fromCssColorString('#f59e0b'),
+        outlineColor: Cesium.Color.WHITE,
+        outlineWidth: 2,
+      },
+      label: {
+        text: `TARGET · ${satelliteSim.destination.label || 'Destination'}`,
+        font: '600 11px "JetBrains Mono", monospace',
+        fillColor: Cesium.Color.fromCssColorString('#fde68a'),
+        outlineColor: Cesium.Color.BLACK,
+        outlineWidth: 3,
+        style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+        pixelOffset: new Cesium.Cartesian2(0, -18),
+      },
+    });
+
+    // 3D NASA Satellite Model
+    ds.entities.add({
+      id: 'sat-player-model',
+      position: new Cesium.CallbackProperty(
+        () => satPhysRef.current.worldPos,
+        false
+      ) as unknown as Cesium.PositionProperty,
+      orientation: new Cesium.CallbackProperty(
+        () => satPhysRef.current.craftQuat,
+        false
+      ) as unknown as Cesium.Property,
+      model: {
+        uri: spec.modelUri,
+        minimumPixelSize: 80,
+        maximumScale: 42000,
+      },
+    });
+
+    const destBrg0 = marsBearingDeg(
+      satelliteSim.start.lat,
+      satelliteSim.start.lon,
+      satelliteSim.destination.lat,
+      satelliteSim.destination.lon
+    );
+    callbackRefs.current.onSatelliteHudUpdate?.({
+      subLat: satelliteSim.start.lat,
+      subLon: satelliteSim.start.lon,
+      altitudeKm: spec.altitudeKm,
+      orbitalSpeedKmS: spec.orbitalSpeedKmS,
+      groundSpeedKmS,
+      headingDeg: satPhysRef.current.headingDeg,
+      solarPowerW: spec.solarPeakW,
+      sunlit: true,
+      downlinkMbps: spec.downlinkPeakMbps,
+      swathWidthKm: spec.swathWidthKm,
+      scansCaptured: 0,
+      overflownRegion: satelliteSim.start.label || 'Mars Entry Zone',
+      activeRelayTarget: null,
+      activeRelayDistKm: null,
+      distanceTraveledKm: 0,
+      distanceRemainingKm: totalKm,
+      totalDistanceKm: totalKm,
+      progressPct: 0,
+      etaSeconds: null,
+      destBearingDeg: destBrg0,
+      timeScale: satelliteSim.timeScale,
+      elapsedMs: 0,
+      surfaceElevM:
+        sampleElevationGrid(
+          callbackRefs.current.elevationGrid,
+          satelliteSim.start.lat,
+          satelliteSim.start.lon
+        ).elevationM ?? null,
+      transitEvents: satPhysRef.current.transitEvents,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    satelliteSim?.active,
+    satelliteSim?.craftId,
+    satelliteSim?.runNonce,
+    satelliteSim?.start.lat,
+    satelliteSim?.start.lon,
+    satelliteSim?.destination.lat,
+    satelliteSim?.destination.lon,
+    pickMode,
+  ]);
+
+  // Satellite Transit Simulator: Update camera immediately on view toggle
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || !satelliteSim?.active || satelliteSim.status === 'setup') return;
+    evaluateSatFrame(viewer, satelliteSim.craftId, satelliteSim.cameraMode, satPhysRef.current.progress);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [satelliteSim?.active, satelliteSim?.cameraMode, satelliteSim?.status]);
+
+  // Satellite Transit Simulator: 60fps Orbital Kinematics & Scan Loop
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || !satelliteSim?.active) return;
+
+    if (satelliteSim.status === 'setup' && pickMode !== 'inspect') {
+      viewer.scene.screenSpaceCameraController.enableInputs = true;
+      return;
+    }
+
+    viewer.scene.screenSpaceCameraController.enableInputs = false;
+
+    if (satelliteSim.status !== 'orbiting') {
+      return;
+    }
+
+    let rafId = 0;
+    let prevTs = performance.now();
+
+    const tick = (now: number) => {
+      const sim = callbackRefs.current.satelliteSim;
+      if (!sim?.active || sim.status !== 'orbiting') return;
+
+      const rawDt = Math.min(0.05, Math.max(0.001, (now - prevTs) / 1000));
+      prevTs = now;
+      const spec = SATELLITE_CRAFTS[sim.craftId];
+      const p = satPhysRef.current;
+
+      const dtSimSec = rawDt * sim.timeScale;
+      const stepKm = p.groundSpeedKmS * dtSimSec;
+      const dProgress = stepKm / Math.max(10, p.totalDistanceKm);
+      p.progress = Math.min(1, p.progress + dProgress);
+      p.elapsedMs += rawDt * 1000;
+
+      evaluateSatFrame(viewer, sim.craftId, sim.cameraMode, p.progress);
+
+      // Capture swath frames periodically along pass
+      if (p.progress - p.lastScanProgress >= 0.08) {
+        p.lastScanProgress = p.progress;
+        p.scansCaptured += 1;
+        playSatCue('scan', sim.muted);
+      }
+
+      // Check nearest surface station / rover within 950 km RF horizon
+      let relayName: string | null = null;
+      let relayDistKm: number | null = null;
+      let relayLat = p.subLat;
+      let relayLon = p.subLon;
+      const surfaceAssets = callbackRefs.current.settings
+        ? [
+            { name: 'Perseverance (Jezero)', lat: 18.4446, lon: 77.4509 },
+            { name: 'Curiosity (Gale)', lat: -4.5895, lon: 137.4417 },
+            { name: 'InSight (Elysium)', lat: 4.5024, lon: 135.6234 },
+            { name: 'Zhurong (Utopia)', lat: 25.102, lon: 109.914 },
+            { name: 'Opportunity (Meridiani)', lat: -1.9483, lon: -5.5258 },
+          ]
+        : [];
+
+      for (const a of surfaceAssets) {
+        const dKm = marsDistanceMeters(p.subLat, p.subLon, a.lat, a.lon) / 1000;
+        if (dKm <= 950 && (relayDistKm === null || dKm < relayDistKm)) {
+          relayName = a.name;
+          relayDistKm = dKm;
+          relayLat = a.lat;
+          relayLon = a.lon;
+        }
+      }
+
+      p.relayTargetName = relayName;
+      p.relayTargetDistKm = relayDistKm;
+      if (relayName) {
+        p.relayTargetPos = Cesium.Cartesian3.fromDegrees(relayLon, relayLat, 600, MARS_ELLIPSOID);
+        if (p.lastRelayLogged !== relayName) {
+          p.lastRelayLogged = relayName;
+          playSatCue('relay', sim.muted);
+          p.transitEvents = [
+            {
+              timeLabel: formatSatDuration(p.elapsedMs),
+              message: `UHF Link: ${relayName}`,
+              kind: 'relay' as const,
+            },
+            ...p.transitEvents,
+          ].slice(0, 8);
+        }
+      }
+
+      // Closest named region currently overflown
+      let regionLabel = `${p.subLat.toFixed(1)}°, ${p.subLon.toFixed(1)}°`;
+      let minLocKm = Infinity;
+      for (const loc of MARS_LOCATIONS) {
+        const dKm = marsDistanceMeters(p.subLat, p.subLon, loc.lat, loc.lon) / 1000;
+        if (dKm < minLocKm) {
+          minLocKm = dKm;
+          regionLabel = dKm < 650 ? loc.name : `Near ${loc.name}`;
+        }
+      }
+
+      const sunlit = Math.cos(Cesium.Math.toRadians(p.subLon + 30)) > -0.35;
+      const solarPowerW = sunlit ? Math.round(spec.solarPeakW * (0.85 + 0.15 * Math.cos(p.progress * Math.PI))) : 0;
+      const downlinkMbps = Number(
+        (spec.downlinkPeakMbps * (relayName ? 1.0 : 0.72)).toFixed(2)
+      );
+      const distTraveledKm = p.progress * p.totalDistanceKm;
+      const distRemainingKm = Math.max(0, (1 - p.progress) * p.totalDistanceKm);
+      const destBearing = marsBearingDeg(
+        p.subLat,
+        p.subLon,
+        sim.destination.lat,
+        sim.destination.lon
+      );
+
+      if (p.progress >= 0.998) {
+        playSatCue('arrived', sim.muted);
+        const finalEvents: SatelliteTransitEvent[] = [
+          {
+            timeLabel: formatSatDuration(p.elapsedMs),
+            message: `Target acquired: ${sim.destination.label || 'Destination'}`,
+            kind: 'scan' as const,
+          },
+          ...p.transitEvents,
+        ].slice(0, 8);
+        callbackRefs.current.onSatelliteHudUpdate?.({
+          subLat: p.subLat,
+          subLon: p.subLon,
+          altitudeKm: spec.altitudeKm,
+          orbitalSpeedKmS: spec.orbitalSpeedKmS,
+          groundSpeedKmS: p.groundSpeedKmS,
+          headingDeg: p.headingDeg,
+          solarPowerW,
+          sunlit,
+          downlinkMbps,
+          swathWidthKm: spec.swathWidthKm,
+          scansCaptured: p.scansCaptured + 1,
+          overflownRegion: sim.destination.label || regionLabel,
+          activeRelayTarget: relayName,
+          activeRelayDistKm: relayDistKm,
+          distanceTraveledKm: p.totalDistanceKm,
+          distanceRemainingKm: 0,
+          totalDistanceKm: p.totalDistanceKm,
+          progressPct: 100,
+          etaSeconds: 0,
+          destBearingDeg: destBearing,
+          timeScale: sim.timeScale,
+          elapsedMs: p.elapsedMs,
+          surfaceElevM:
+            sampleElevationGrid(callbackRefs.current.elevationGrid, p.subLat, p.subLon).elevationM ??
+            null,
+          transitEvents: finalEvents,
+        });
+        callbackRefs.current.onSatelliteStatusChange?.('arrived');
+        return;
+      }
+
+      if (now - p.lastHudEmitMs >= 55) {
+        p.lastHudEmitMs = now;
+        const etaSeconds = distRemainingKm / Math.max(0.1, p.groundSpeedKmS * sim.timeScale);
+        callbackRefs.current.onSatelliteHudUpdate?.({
+          subLat: p.subLat,
+          subLon: p.subLon,
+          altitudeKm: spec.altitudeKm,
+          orbitalSpeedKmS: spec.orbitalSpeedKmS,
+          groundSpeedKmS: p.groundSpeedKmS,
+          headingDeg: p.headingDeg,
+          solarPowerW,
+          sunlit,
+          downlinkMbps,
+          swathWidthKm: spec.swathWidthKm,
+          scansCaptured: p.scansCaptured,
+          overflownRegion: regionLabel,
+          activeRelayTarget: relayName,
+          activeRelayDistKm: relayDistKm,
+          distanceTraveledKm: distTraveledKm,
+          distanceRemainingKm: distRemainingKm,
+          totalDistanceKm: p.totalDistanceKm,
+          progressPct: p.progress * 100,
+          etaSeconds,
+          destBearingDeg: destBearing,
+          timeScale: sim.timeScale,
+          elapsedMs: p.elapsedMs,
+          surfaceElevM:
+            sampleElevationGrid(callbackRefs.current.elevationGrid, p.subLat, p.subLon).elevationM ??
+            null,
+          transitEvents: p.transitEvents,
+        });
+      }
+
+      rafId = requestAnimationFrame(tick);
+    };
+
+    rafId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafId);
+  }, [satelliteSim?.active, satelliteSim?.status, pickMode]);
 
   const cursorFormatted = cursorCoord
     ? formatMarsCoords(
@@ -3304,7 +4578,7 @@ export default function MarsGlobe({
         className={`h-full w-full ${pickMode !== 'inspect' ? 'cursor-crosshair' : 'cursor-grab active:cursor-grabbing'}`}
       />
 
-      {splitCompareLayerId && !flightSim?.active && !roverSim?.active && (
+      {splitCompareLayerId && !flightSim?.active && !roverSim?.active && !satelliteSim?.active && (
         <div
           className="pointer-events-auto absolute inset-y-0 z-10 w-0.5 bg-[#8ab4f8]"
           style={{ left: `${splitPos * 100}%` }}
@@ -3332,7 +4606,7 @@ export default function MarsGlobe({
       )}
 
       {/* Bottom-Left Google Earth Style Basemap Switcher Square */}
-      {!flightSim?.active && !roverSim?.active && (
+      {!flightSim?.active && !roverSim?.active && !satelliteSim?.active && (
         <div className="absolute bottom-10 left-3 z-20">
           {basemapMenuOpen && (
             <div className="mb-2 w-52 rounded-2xl border border-white/12 bg-[#202124]/95 p-2 text-xs text-[#e8eaed] shadow-2xl backdrop-blur-md">
@@ -3390,7 +4664,7 @@ export default function MarsGlobe({
       )}
 
       {/* Bottom-Right Google Earth Navigation Cluster (Surface Fly-In, North Compass, 3D/2D, Zoom -/+) */}
-      {!flightSim?.active && !roverSim?.active && (
+      {!flightSim?.active && !roverSim?.active && !satelliteSim?.active && (
         <div className="absolute bottom-10 right-3 z-20 flex items-center gap-2">
           <button
             type="button"
@@ -3453,7 +4727,7 @@ export default function MarsGlobe({
       )}
 
       {/* Very Bottom Google Earth Attribution + Dynamic Scale Bar + Live Telemetry Strip */}
-      {!flightSim?.active && !roverSim?.active && (
+      {!flightSim?.active && !roverSim?.active && !satelliteSim?.active && (
         <div className="absolute inset-x-0 bottom-0 z-20 flex h-7 items-center justify-between border-t border-white/10 bg-[#17181b]/92 px-3 text-[11px] text-[#bdc1c6] backdrop-blur-sm select-none">
           <div className="flex items-center gap-3">
             <span className="font-semibold tracking-tight text-white">NASA / USGS</span>

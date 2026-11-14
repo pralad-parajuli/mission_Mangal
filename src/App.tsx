@@ -22,6 +22,10 @@ import {
   RoverSimStatus,
   RoverTouchInput,
   RoverVehicleId,
+  SatelliteCameraMode,
+  SatelliteCraftId,
+  SatelliteHudTelemetry,
+  SatelliteSimStatus,
   ScientificPoi,
 } from './types/mars';
 import { MARS_LAYERS } from './data/layers';
@@ -38,6 +42,7 @@ import {
   saveFlightRecord,
 } from './data/flightCourses';
 import { ROVER_EXPEDITIONS } from './data/roverMissions';
+import { SATELLITE_CRAFTS, SATELLITE_PASS_PRESETS } from './data/satelliteMissions';
 import { fetchJezeroElevationGrid, fetchMissionTelemetry } from './services/marsApi';
 import { getPresetWeights, planTerrainAwareRoute } from './analysis/pathfinding';
 import { marsBearingDeg, marsDistanceMeters, sphericalMidpoint } from './utils/coordinates';
@@ -51,6 +56,7 @@ import SettingsModal from './components/SettingsModal';
 import ReportModal from './components/ReportModal';
 import FlightSimulatorHUD from './components/FlightSimulatorHUD';
 import RoverSimulatorHUD from './components/RoverSimulatorHUD';
+import SatelliteSimulatorHUD from './components/SatelliteSimulatorHUD';
 
 const DEFAULT_SETTINGS: AppSettings = {
   coordinateFormat: 'decimal',
@@ -278,12 +284,15 @@ export default function App() {
       lat: defaultRoverPreset.start.lat,
       lon: defaultRoverPreset.start.lon,
       elevM: -2570,
+      startElevM: null,
+      destElevM: null,
       headingDeg: initialBrg,
       pitchDeg: 0,
       rollDeg: 0,
       slopeDeg: 0,
       speedMs: 0,
       speedKmh: 0,
+      avgSpeedKmh: 0,
       throttle: 0,
       boosting: false,
       braking: false,
@@ -291,6 +300,15 @@ export default function App() {
       timeScale: 1,
       batteryPct: 100,
       oxygenPct: 100,
+      energyUsedKwh: 0,
+      wheelRpm: 0,
+      powerDrawKw: 0.4,
+      suspensionCompressionPct: 50,
+      slipPct: 0,
+      ambientTempC: -62,
+      relaySatelliteName: 'MRO Electra UHF',
+      relaySignalPct: 86,
+      relayElevationDeg: 58,
       distanceTraveledM: 0,
       distanceRemainingM: initialDistM,
       totalRouteDistanceM: initialDistM,
@@ -306,6 +324,68 @@ export default function App() {
       nearbyPoiName: null,
       nearbyPoiDistM: null,
       elapsedMs: 0,
+      transitEvents: [],
+    };
+  });
+
+  // Satellite Orbital Transit Simulator State
+  const defaultSatPreset = SATELLITE_PASS_PRESETS[0];
+  const [satelliteActive, setSatelliteActive] = useState(false);
+  const [satelliteCraftId, setSatelliteCraftId] = useState<SatelliteCraftId>(
+    defaultSatPreset.recommendedCraft
+  );
+  const [satelliteCameraMode, setSatelliteCameraMode] = useState<SatelliteCameraMode>('chase');
+  const [satelliteStatus, setSatelliteStatus] = useState<SatelliteSimStatus>('setup');
+  const [satelliteTimeScale, setSatelliteTimeScale] = useState<1 | 10 | 50 | 200>(50);
+  const [satelliteMuted, setSatelliteMuted] = useState(false);
+  const [satelliteRunNonce, setSatelliteRunNonce] = useState(0);
+  const [satelliteStart, setSatelliteStart] = useState<MarsCoordinate>(defaultSatPreset.start);
+  const [satelliteDest, setSatelliteDest] = useState<MarsCoordinate>(
+    defaultSatPreset.destination
+  );
+  const [satellitePickTarget, setSatellitePickTarget] = useState<'start' | 'destination' | null>(
+    null
+  );
+  const [satelliteHud, setSatelliteHud] = useState<SatelliteHudTelemetry>(() => {
+    const distKm =
+      marsDistanceMeters(
+        defaultSatPreset.start.lat,
+        defaultSatPreset.start.lon,
+        defaultSatPreset.destination.lat,
+        defaultSatPreset.destination.lon
+      ) / 1000;
+    const brg = marsBearingDeg(
+      defaultSatPreset.start.lat,
+      defaultSatPreset.start.lon,
+      defaultSatPreset.destination.lat,
+      defaultSatPreset.destination.lon
+    );
+    const craft = SATELLITE_CRAFTS[defaultSatPreset.recommendedCraft];
+    return {
+      subLat: defaultSatPreset.start.lat,
+      subLon: defaultSatPreset.start.lon,
+      altitudeKm: craft.altitudeKm,
+      orbitalSpeedKmS: craft.orbitalSpeedKmS,
+      groundSpeedKmS: Number(((craft.orbitalSpeedKmS * 3396.19) / (3396.19 + craft.altitudeKm)).toFixed(2)),
+      headingDeg: brg,
+      solarPowerW: Math.round(craft.solarPeakW * 0.92),
+      sunlit: true,
+      downlinkMbps: craft.downlinkPeakMbps,
+      swathWidthKm: craft.swathWidthKm,
+      scansCaptured: 0,
+      overflownRegion: defaultSatPreset.start.label || 'Syrtis Major / Jezero',
+      activeRelayTarget: null,
+      activeRelayDistKm: null,
+      distanceTraveledKm: 0,
+      distanceRemainingKm: distKm,
+      totalDistanceKm: distKm,
+      progressPct: 0,
+      etaSeconds: distKm / Math.max(0.5, craft.orbitalSpeedKmS),
+      destBearingDeg: brg,
+      timeScale: 50,
+      elapsedMs: 0,
+      surfaceElevM: null,
+      transitEvents: [],
     };
   });
 
@@ -576,6 +656,22 @@ export default function App() {
         setRoverRunNonce((n) => n + 1);
         return;
       }
+      if (satelliteActive && satellitePickTarget) {
+        const picked: MarsCoordinate = {
+          lat,
+          lon,
+          label: `Target ${lat.toFixed(2)}°, ${lon.toFixed(2)}°`,
+        };
+        if (satellitePickTarget === 'start') {
+          setSatelliteStart(picked);
+        } else {
+          setSatelliteDest(picked);
+        }
+        setSatellitePickTarget(null);
+        setPickMode('inspect');
+        setSatelliteRunNonce((n) => n + 1);
+        return;
+      }
       if (pickMode === 'start') {
         const nextStart = { lat, lon, label: `Site ${lat.toFixed(2)}°, ${lon.toFixed(2)}°` };
         setRouteStart(nextStart);
@@ -609,6 +705,8 @@ export default function App() {
       routes.length,
       roverActive,
       roverPickTarget,
+      satelliteActive,
+      satellitePickTarget,
     ]
   );
 
@@ -745,6 +843,9 @@ export default function App() {
     setRoverActive(false);
     setRoverStatus('setup');
     setRoverPickTarget(null);
+    setSatelliteActive(false);
+    setSatelliteStatus('setup');
+    setSatellitePickTarget(null);
     setPickMode('inspect');
     setLeftDrawerOpen(false);
     setRightDrawerOpen(false);
@@ -814,6 +915,9 @@ export default function App() {
     }
     setFlightActive(false);
     setFlightStatus('menu');
+    setSatelliteActive(false);
+    setSatelliteStatus('setup');
+    setSatellitePickTarget(null);
     setPickMode('inspect');
     setRoverPickTarget(null);
     setLeftDrawerOpen(false);
@@ -839,6 +943,9 @@ export default function App() {
     }
     setFlightActive(false);
     setFlightStatus('menu');
+    setSatelliteActive(false);
+    setSatelliteStatus('setup');
+    setSatellitePickTarget(null);
     setPickMode('inspect');
     setRoverPickTarget(null);
     setLeftDrawerOpen(false);
@@ -901,6 +1008,79 @@ export default function App() {
     );
   }, []);
 
+  const handleOpenSatelliteSim = useCallback(() => {
+    if (satelliteActive) {
+      setSatelliteActive(false);
+      setSatelliteStatus('setup');
+      setSatellitePickTarget(null);
+      setPickMode('inspect');
+      return;
+    }
+    setFlightActive(false);
+    setFlightStatus('menu');
+    setRoverActive(false);
+    setRoverStatus('setup');
+    setRoverPickTarget(null);
+    setPickMode('inspect');
+    setSatellitePickTarget(null);
+    setLeftDrawerOpen(false);
+    setRightDrawerOpen(false);
+    setBottomDockOpen(false);
+    setShowLegend(false);
+    setSatelliteStatus('setup');
+    setSatelliteRunNonce((n) => n + 1);
+    setSatelliteActive(true);
+  }, [satelliteActive]);
+
+  const handleSelectSatellitePassPreset = useCallback((presetId: string) => {
+    const preset = SATELLITE_PASS_PRESETS.find((p) => p.id === presetId);
+    if (!preset) return;
+    setSatelliteStart(preset.start);
+    setSatelliteDest(preset.destination);
+    setSatelliteCraftId(preset.recommendedCraft);
+    setSatelliteRunNonce((n) => n + 1);
+  }, []);
+
+  const handleSwapSatelliteEndpoints = useCallback(() => {
+    setSatelliteStart(satelliteDest);
+    setSatelliteDest(satelliteStart);
+    setSatelliteRunNonce((n) => n + 1);
+  }, [satelliteDest, satelliteStart]);
+
+  const handleSatelliteReturnPass = useCallback(() => {
+    setSatelliteStart(satelliteDest);
+    setSatelliteDest(satelliteStart);
+    setSatelliteRunNonce((n) => n + 1);
+    setSatelliteStatus('orbiting');
+  }, [satelliteDest, satelliteStart]);
+
+  const handleSatellitePickOnGlobe = useCallback(
+    (which: 'start' | 'destination') => {
+      setSatellitePickTarget(which);
+      setPickMode(which);
+      const mid = sphericalMidpoint(
+        satelliteStart.lat,
+        satelliteStart.lon,
+        satelliteDest.lat,
+        satelliteDest.lon
+      );
+      const distM = marsDistanceMeters(
+        satelliteStart.lat,
+        satelliteStart.lon,
+        satelliteDest.lat,
+        satelliteDest.lon
+      );
+      handleFlyTo(mid.lat, mid.lon, Math.max(4200000, Math.min(10500000, distM * 2.2)));
+    },
+    [handleFlyTo, satelliteDest, satelliteStart]
+  );
+
+  const handleSatelliteToggleCamera = useCallback(() => {
+    setSatelliteCameraMode((prev) =>
+      prev === 'chase' ? 'nadir' : prev === 'nadir' ? 'horizon' : 'chase'
+    );
+  }, []);
+
   return (
     <div ref={rootRef} className="flex h-screen w-screen flex-col overflow-hidden bg-[#030406] text-[#e8eaed]">
       <TopNav
@@ -946,6 +1126,8 @@ export default function App() {
         onOpenFlightSim={handleOpenFlightSim}
         roverSimActive={roverActive}
         onOpenRoverSim={handleOpenRoverSim}
+        satelliteSimActive={satelliteActive}
+        onOpenSatelliteSim={handleOpenSatelliteSim}
       />
 
       {/* Full-Bleed Google Earth Spatial Canvas + Floating Material Dark Drawers */}
@@ -1040,6 +1222,31 @@ export default function App() {
               setRoverActive(false);
               setRoverStatus('setup');
               setRoverPickTarget(null);
+              setPickMode('inspect');
+            }}
+            satelliteSim={{
+              active: satelliteActive,
+              craftId: satelliteCraftId,
+              cameraMode: satelliteCameraMode,
+              status: satelliteStatus,
+              timeScale: satelliteTimeScale,
+              muted: satelliteMuted,
+              runNonce: satelliteRunNonce,
+              start: satelliteStart,
+              destination: satelliteDest,
+            }}
+            onSatelliteHudUpdate={setSatelliteHud}
+            onSatelliteStatusChange={setSatelliteStatus}
+            onSatelliteToggleCamera={handleSatelliteToggleCamera}
+            onSatelliteTogglePause={() =>
+              setSatelliteStatus((s) =>
+                s === 'orbiting' ? 'paused' : s === 'paused' ? 'orbiting' : s
+              )
+            }
+            onSatelliteExit={() => {
+              setSatelliteActive(false);
+              setSatelliteStatus('setup');
+              setSatellitePickTarget(null);
               setPickMode('inspect');
             }}
           />
@@ -1152,8 +1359,74 @@ export default function App() {
           />
         )}
 
+        {satelliteActive && satellitePickTarget && (
+          <div className="pointer-events-auto absolute top-14 left-1/2 z-40 -translate-x-1/2">
+            <button
+              onClick={() => {
+                setSatellitePickTarget(null);
+                setPickMode('inspect');
+              }}
+              className="rounded-lg border border-white/20 bg-[#0B0E17]/95 px-3.5 py-1.5 text-xs font-medium text-slate-200 shadow-lg hover:bg-white/10"
+            >
+              Cancel Globe Pick & Return to Satellite Setup
+            </button>
+          </div>
+        )}
+
+        {satelliteActive && !satellitePickTarget && (
+          <SatelliteSimulatorHUD
+            status={satelliteStatus}
+            craftId={satelliteCraftId}
+            cameraMode={satelliteCameraMode}
+            timeScale={satelliteTimeScale}
+            muted={satelliteMuted}
+            startCoord={satelliteStart}
+            destCoord={satelliteDest}
+            hud={satelliteHud}
+            onSelectCraft={setSatelliteCraftId}
+            onSelectPassPreset={handleSelectSatellitePassPreset}
+            onChangeStart={(coord) => {
+              setSatelliteStart(coord);
+              setSatelliteRunNonce((n) => n + 1);
+            }}
+            onChangeDest={(coord) => {
+              setSatelliteDest(coord);
+              setSatelliteRunNonce((n) => n + 1);
+            }}
+            onSwapEndpoints={handleSwapSatelliteEndpoints}
+            onPickOnGlobe={handleSatellitePickOnGlobe}
+            onSetTimeScale={setSatelliteTimeScale}
+            onToggleCamera={handleSatelliteToggleCamera}
+            onToggleMute={() => setSatelliteMuted((v) => !v)}
+            onStartOrbit={() => {
+              setSatelliteRunNonce((n) => n + 1);
+              setSatelliteStatus('orbiting');
+            }}
+            onRestartOrbit={() => {
+              setSatelliteRunNonce((n) => n + 1);
+              setSatelliteStatus('orbiting');
+            }}
+            onReturnPass={handleSatelliteReturnPass}
+            onOpenSetup={() => {
+              setSatelliteStatus('setup');
+              setSatelliteRunNonce((n) => n + 1);
+            }}
+            onTogglePause={() =>
+              setSatelliteStatus((s) =>
+                s === 'orbiting' ? 'paused' : s === 'paused' ? 'orbiting' : s
+              )
+            }
+            onExit={() => {
+              setSatelliteActive(false);
+              setSatelliteStatus('setup');
+              setSatellitePickTarget(null);
+              setPickMode('inspect');
+            }}
+          />
+        )}
+
         {/* Floating Left Drawer (Catalog, Missions, Geology, Climate, Route Planner) */}
-        {!flightActive && !roverActive && leftDrawerOpen && (
+        {!flightActive && !roverActive && !satelliteActive && leftDrawerOpen && (
           <div className="absolute top-3 left-3 bottom-10 z-30 flex w-[348px] max-w-[calc(100%-1.5rem)]">
             <LeftSidebar
               activeTab={leftTab}
@@ -1217,7 +1490,7 @@ export default function App() {
         )}
 
         {/* Floating Right Knowledge Card & Data Legend Stack (Collision-free) */}
-        {!flightActive && !roverActive && (showLegend || rightDrawerOpen) && (
+        {!flightActive && !roverActive && !satelliteActive && (showLegend || rightDrawerOpen) && (
           <div className="pointer-events-none absolute top-3 right-3 z-20 flex max-h-[calc(100%-6.25rem)] max-w-[calc(100%-1.5rem)] items-start gap-2.5">
             {showLegend && (
               <div className="hidden sm:block">
@@ -1275,7 +1548,7 @@ export default function App() {
         )}
 
         {/* Floating Bottom Route Telemetry & Elevation Profile Dock */}
-        {!flightActive && !roverActive && bottomDockOpen && activeRoute && (
+        {!flightActive && !roverActive && !satelliteActive && bottomDockOpen && activeRoute && (
           <div
             className={`pointer-events-none absolute right-3 bottom-10 left-3 z-20 ${
               leftDrawerOpen ? 'lg:left-[372px]' : 'lg:left-20'

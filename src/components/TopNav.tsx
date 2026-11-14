@@ -15,6 +15,7 @@ import {
   Redo2,
   Rocket,
   Route as RouteIcon,
+  Satellite,
   Search,
   Settings,
   Truck,
@@ -59,6 +60,8 @@ interface TopNavProps {
   onOpenFlightSim: () => void;
   roverSimActive?: boolean;
   onOpenRoverSim: () => void;
+  satelliteSimActive?: boolean;
+  onOpenSatelliteSim: () => void;
 }
 
 type MenuKey = 'file' | 'view' | 'layers' | 'missions' | 'tools' | 'help' | null;
@@ -96,6 +99,8 @@ export default function TopNav({
   onOpenFlightSim,
   roverSimActive,
   onOpenRoverSim,
+  satelliteSimActive,
+  onOpenSatelliteSim,
 }: TopNavProps) {
   const [query, setQuery] = useState('');
   const [openResults, setOpenResults] = useState(false);
@@ -436,6 +441,17 @@ export default function TopNav({
                       >
                         <span>Astronaut Rover Simulator</span>
                         <span className="text-[10px] text-cyan-400">A → B Drive</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onOpenSatelliteSim();
+                          setOpenMenu(null);
+                        }}
+                        className="flex w-full items-center justify-between px-3.5 py-1.5 text-left font-medium text-indigo-300 hover:bg-white/10"
+                      >
+                        <span>Mars Satellite Simulator</span>
+                        <span className="text-[10px] text-indigo-400">Orbit A → B</span>
                       </button>
                       <button
                         type="button"
@@ -804,6 +820,20 @@ export default function TopNav({
             >
               <Truck className="h-3.5 w-3.5 text-cyan-400" />
               <span className="hidden xl:inline">Rover Sim</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={onOpenSatelliteSim}
+              className={`flex h-8 items-center gap-1.5 rounded-full border px-2.5 text-[11px] font-medium transition-colors whitespace-nowrap shrink-0 ${
+                satelliteSimActive
+                  ? 'border-indigo-500/70 bg-indigo-500/20 text-indigo-300'
+                  : 'border-white/12 bg-[#303134] text-[#e8eaed] hover:border-indigo-500/50 hover:bg-indigo-500/15 hover:text-indigo-200'
+              }`}
+              title="Launch Mars Satellite Orbital Transit Simulator"
+            >
+              <Satellite className="h-3.5 w-3.5 text-indigo-400" />
+              <span className="hidden xl:inline">Orbit Sim</span>
             </button>
 
             <button

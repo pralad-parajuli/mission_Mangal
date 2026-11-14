@@ -427,16 +427,25 @@ export interface RoverExpeditionPreset {
   routeMode: RouteMode;
 }
 
+export interface RoverTransitEvent {
+  timeLabel: string;
+  message: string;
+  kind: 'info' | 'warn' | 'science' | 'relay';
+}
+
 export interface RoverHudTelemetry {
   lat: number;
   lon: number;
   elevM: number | null;
+  startElevM: number | null;
+  destElevM: number | null;
   headingDeg: number;
   pitchDeg: number;
   rollDeg: number;
   slopeDeg: number;
   speedMs: number;
   speedKmh: number;
+  avgSpeedKmh: number;
   throttle: number;
   boosting: boolean;
   braking: boolean;
@@ -444,6 +453,15 @@ export interface RoverHudTelemetry {
   timeScale: 1 | 5 | 20;
   batteryPct: number;
   oxygenPct: number;
+  energyUsedKwh: number;
+  wheelRpm: number;
+  powerDrawKw: number;
+  suspensionCompressionPct: number;
+  slipPct: number;
+  ambientTempC: number;
+  relaySatelliteName: string | null;
+  relaySignalPct: number;
+  relayElevationDeg: number;
   distanceTraveledM: number;
   distanceRemainingM: number;
   totalRouteDistanceM: number;
@@ -459,6 +477,7 @@ export interface RoverHudTelemetry {
   nearbyPoiName: string | null;
   nearbyPoiDistM: number | null;
   elapsedMs: number;
+  transitEvents: RoverTransitEvent[];
 }
 
 export interface RoverTouchInput {
@@ -468,4 +487,67 @@ export interface RoverTouchInput {
   boost: boolean;
 }
 
+export type SatelliteCraftId = 'mro' | 'odyssey' | 'mgs';
+export type SatelliteCameraMode = 'chase' | 'nadir' | 'horizon';
+export type SatelliteSimStatus = 'setup' | 'orbiting' | 'paused' | 'arrived';
 
+export interface SatelliteCraftSpec {
+  id: SatelliteCraftId;
+  name: string;
+  shortName: string;
+  agency: string;
+  role: string;
+  description: string;
+  altitudeKm: number;
+  orbitalSpeedKmS: number;
+  inclinationDeg: number;
+  swathWidthKm: number;
+  instrumentName: string;
+  downlinkPeakMbps: number;
+  solarPeakW: number;
+  accentColor: string;
+  modelUri: string;
+}
+
+export interface SatellitePassPreset {
+  id: string;
+  name: string;
+  region: string;
+  subtitle: string;
+  start: MarsCoordinate;
+  destination: MarsCoordinate;
+  recommendedCraft: SatelliteCraftId;
+}
+
+export interface SatelliteTransitEvent {
+  timeLabel: string;
+  message: string;
+  kind: 'info' | 'scan' | 'relay';
+}
+
+export interface SatelliteHudTelemetry {
+  subLat: number;
+  subLon: number;
+  altitudeKm: number;
+  orbitalSpeedKmS: number;
+  groundSpeedKmS: number;
+  headingDeg: number;
+  solarPowerW: number;
+  sunlit: boolean;
+  downlinkMbps: number;
+  swathWidthKm: number;
+  scansCaptured: number;
+  overflownRegion: string;
+  activeRelayTarget: string | null;
+  activeRelayDistKm: number | null;
+  distanceTraveledKm: number;
+  distanceRemainingKm: number;
+  totalDistanceKm: number;
+  progressPct: number;
+  etaSeconds: number | null;
+  destBearingDeg: number;
+  timeScale: 1 | 10 | 50 | 200;
+  elapsedMs: number;
+  surfaceElevM: number | null;
+  transitEvents: SatelliteTransitEvent[];
+}
