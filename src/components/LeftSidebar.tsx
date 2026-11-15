@@ -224,11 +224,11 @@ export default function LeftSidebar({
   const [envKindFilter, setEnvKindFilter] = useState<string>('all');
 
   const tabs: Array<{ id: LeftTab; label: string; icon: React.ComponentType<{ className?: string }> }> = [
-    { id: 'layers', label: 'Layers', icon: Layers },
-    { id: 'missions', label: 'Missions', icon: Rocket },
-    { id: 'geology', label: 'Geology', icon: Mountain },
+    { id: 'layers', label: 'Overlays', icon: Layers },
+    { id: 'missions', label: 'Outposts', icon: Rocket },
+    { id: 'geology', label: 'Terrain', icon: Mountain },
     { id: 'environment', label: 'Climate', icon: CloudSun },
-    { id: 'routing', label: 'Route', icon: Route },
+    { id: 'routing', label: 'Traverse', icon: Route },
   ];
 
   const filteredMissions =
@@ -246,9 +246,32 @@ export default function LeftSidebar({
   });
 
   return (
-    <aside className="flex h-full w-full flex-col overflow-hidden rounded-2xl border border-white/12 bg-[#202124]/95 text-xs text-[#e8eaed] shadow-2xl backdrop-blur-md">
+    <aside className="flex h-full w-full flex-col overflow-hidden rounded-lg border border-amber-500/25 bg-[#0B0F17]/95 text-xs text-slate-200 shadow-2xl">
+      {/* Survival Field Manual Header */}
+      <div className="flex shrink-0 items-center justify-between border-b border-amber-500/20 bg-[#080B11] px-3.5 py-2">
+        <div>
+          <div className="text-[10px] font-semibold tracking-wider text-amber-400 uppercase">
+            Interplanetary Survival Guide
+          </div>
+          <div className="font-display text-xs font-semibold text-white">
+            Mars Field Manual & Hazard Index
+          </div>
+        </div>
+        {onCloseMobile && (
+          <button
+            type="button"
+            onClick={onCloseMobile}
+            className="flex h-7 w-7 items-center justify-center rounded-md text-slate-400 hover:bg-white/10 hover:text-white"
+            aria-label="Close panel"
+            title="Close Panel"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
+      </div>
+
       {/* Tab Navigation Strip */}
-      <div className="flex shrink-0 items-center border-b border-white/10 bg-[#1b1c1f]/90">
+      <div className="flex shrink-0 items-center border-b border-slate-800 bg-[#080B11]/80">
         <div className="grid flex-1 grid-cols-5">
           {tabs.map((tab) => {
             const Icon = tab.icon;
@@ -260,8 +283,8 @@ export default function LeftSidebar({
                 onClick={() => onTabChange(tab.id)}
                 className={`flex flex-col items-center justify-center gap-1 border-b-2 py-2.5 text-[11px] font-medium transition-colors whitespace-nowrap ${
                   active
-                    ? 'border-[#8ab4f8] bg-[#292a2d]/60 text-[#8ab4f8]'
-                    : 'border-transparent text-[#9aa0a6] hover:bg-white/5 hover:text-[#e8eaed]'
+                    ? 'border-amber-400 bg-amber-500/10 text-amber-300'
+                    : 'border-transparent text-slate-400 hover:bg-white/5 hover:text-slate-100'
                 }`}
               >
                 <Icon className="h-3.5 w-3.5" />
@@ -270,36 +293,27 @@ export default function LeftSidebar({
             );
           })}
         </div>
-        {onCloseMobile && (
-          <button
-            type="button"
-            onClick={onCloseMobile}
-            className="mr-2 flex h-7 w-7 items-center justify-center rounded-full text-[#9aa0a6] hover:bg-white/10 hover:text-white"
-            aria-label="Close panel"
-            title="Close Panel"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        )}
       </div>
 
       {/* Scrollable Tab Content */}
       <div className="flex-1 overflow-y-auto p-3.5">
-        {/* TAB 1: SCIENTIFIC DATA LAYERS */}
+        {/* TAB 1: SURVIVAL HAZARD OVERLAYS */}
         {activeTab === 'layers' && (
           <div className="space-y-2.5">
-            <div className="flex items-center justify-between border-b border-white/10 pb-2">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
               <div>
-                <h2 className="text-xs font-semibold text-white">NASA & Derived Data Catalog</h2>
-                <p className="text-[11px] text-[#9aa0a6]">
-                  {layers.filter((l) => layerStates[l.id]?.enabled).length} active layers
+                <h2 className="font-display text-xs font-semibold text-white">
+                  Survival Hazard & Surface Overlays
+                </h2>
+                <p className="text-[11px] text-slate-400">
+                  {layers.filter((l) => layerStates[l.id]?.enabled).length} active overlays
                 </p>
               </div>
               {splitCompareLayerId && (
                 <button
                   type="button"
                   onClick={() => onSetSplitCompare(null)}
-                  className="rounded-full border border-[#8ab4f8]/40 bg-[#8ab4f8]/15 px-2.5 py-1 text-[10px] font-medium text-[#8ab4f8] hover:bg-[#8ab4f8]/25"
+                  className="rounded-md border border-amber-500/40 bg-amber-500/15 px-2.5 py-1 text-[10px] font-medium text-amber-300 hover:bg-amber-500/25"
                 >
                   Exit Split
                 </button>
@@ -318,10 +332,10 @@ export default function LeftSidebar({
               return (
                 <div
                   key={layer.id}
-                  className={`rounded-xl border transition-colors ${
+                  className={`rounded-md border transition-colors ${
                     st.enabled
-                      ? 'border-white/15 bg-[#292a2d]'
-                      : 'border-white/6 bg-[#202124] hover:border-white/12'
+                      ? 'border-amber-500/35 bg-[#111824]'
+                      : 'border-slate-800 bg-[#0D121B] hover:border-slate-700'
                   }`}
                 >
                   <div className="flex items-center justify-between gap-2 px-3 py-2">
@@ -330,7 +344,7 @@ export default function LeftSidebar({
                         type="checkbox"
                         checked={st.enabled}
                         onChange={() => onToggleLayer(layer.id)}
-                        className="h-3.5 w-3.5 accent-[#8ab4f8]"
+                        className="h-3.5 w-3.5 accent-amber-500"
                       />
                       <div className="min-w-0">
                         <div className="truncate text-xs font-medium text-slate-100">
@@ -352,10 +366,10 @@ export default function LeftSidebar({
                         <button
                           type="button"
                           onClick={() => onSetSplitCompare(isSplit ? null : layer.id)}
-                          className={`rounded-full border px-2 py-0.5 text-[10px] ${
+                          className={`rounded-md border px-2 py-0.5 text-[10px] ${
                             isSplit
-                              ? 'border-[#8ab4f8] bg-[#8ab4f8]/20 text-[#8ab4f8]'
-                              : 'border-white/12 text-[#9aa0a6] hover:text-white'
+                              ? 'border-amber-500 bg-amber-500/20 text-amber-300'
+                              : 'border-slate-700 text-slate-400 hover:text-white'
                           }`}
                           title="Compare layer in split-screen slider"
                         >
@@ -365,7 +379,7 @@ export default function LeftSidebar({
                       <button
                         type="button"
                         onClick={() => setExpandedLayerId(isExpanded ? null : layer.id)}
-                        className="rounded-full border border-white/10 px-2 py-0.5 text-[10px] text-[#9aa0a6] hover:border-white/20 hover:text-white"
+                        className="rounded-md border border-slate-700/80 px-2 py-0.5 text-[10px] text-slate-400 hover:border-slate-500 hover:text-white"
                       >
                         {isExpanded ? 'Hide' : 'Info'}
                       </button>
@@ -373,8 +387,8 @@ export default function LeftSidebar({
                   </div>
 
                   {st.enabled && (
-                    <div className="flex items-center gap-2 border-t border-white/10 px-3 py-1.5">
-                      <span className="text-[10px] text-[#9aa0a6]">Opacity</span>
+                    <div className="flex items-center gap-2 border-t border-slate-800 px-3 py-1.5">
+                      <span className="text-[10px] text-slate-400">Opacity</span>
                       <input
                         type="range"
                         min={0.1}
@@ -382,30 +396,30 @@ export default function LeftSidebar({
                         step={0.05}
                         value={st.opacity}
                         onChange={(e) => onLayerOpacity(layer.id, parseFloat(e.target.value))}
-                        className="h-1 flex-1 accent-[#8ab4f8]"
+                        className="h-1 flex-1 accent-amber-500"
                       />
-                      <span className="w-8 text-right font-mono text-[10px] text-[#bdc1c6] tabular-nums">
+                      <span className="w-8 text-right font-mono text-[10px] text-slate-300 tabular-nums">
                         {Math.round(st.opacity * 100)}%
                       </span>
                     </div>
                   )}
 
                   {isExpanded && (
-                    <div className="space-y-1.5 border-t border-white/10 bg-[#1b1c1f]/70 px-3 py-2 text-[11px] text-[#bdc1c6]">
+                    <div className="space-y-1.5 border-t border-slate-800 bg-[#080B11]/80 px-3 py-2 text-[11px] text-slate-300">
                       <div className="font-medium text-white">{layer.name}</div>
-                      <p className="leading-relaxed text-[#9aa0a6]">{layer.description}</p>
-                      <div className="grid grid-cols-1 gap-0.5 pt-1 text-[10px] text-[#9aa0a6]">
+                      <p className="leading-relaxed text-slate-400">{layer.description}</p>
+                      <div className="grid grid-cols-1 gap-0.5 pt-1 text-[10px] text-slate-400">
                         <div>
-                          <span className="text-[#80868b]">Source:</span> {layer.source}
+                          <span className="text-slate-500">Source:</span> {layer.source}
                         </div>
                         <div>
-                          <span className="text-[#80868b]">Date:</span> {layer.observationDate}
+                          <span className="text-slate-500">Date:</span> {layer.observationDate}
                         </div>
                         <div>
-                          <span className="text-[#80868b]">Coverage:</span> {layer.coverage}
+                          <span className="text-slate-500">Coverage:</span> {layer.coverage}
                         </div>
                         <div>
-                          <span className="text-[#80868b]">License:</span> {layer.license}
+                          <span className="text-slate-500">License:</span> {layer.license}
                         </div>
                       </div>
                       {layer.bounds && (
@@ -419,7 +433,7 @@ export default function LeftSidebar({
                               layer.shortName
                             )
                           }
-                          className="mt-1 inline-flex items-center gap-1 text-[10px] font-medium text-[#8ab4f8] hover:underline"
+                          className="mt-1 inline-flex items-center gap-1 text-[10px] font-medium text-amber-400 hover:underline"
                         >
                           <Compass className="h-3 w-3" /> Zoom to coverage extent
                         </button>
@@ -432,15 +446,15 @@ export default function LeftSidebar({
           </div>
         )}
 
-        {/* TAB 2: MARS MISSIONS */}
+        {/* TAB 2: OUTPOSTS & RECON ASSETS */}
         {activeTab === 'missions' && (
           <div className="space-y-3">
-            <div className="border-b border-white/10 pb-2.5">
-              <h2 className="text-xs font-semibold text-white">
-                Mars Surface, Aerial & Orbital Missions ({missions.length})
+            <div className="border-b border-slate-800 pb-2.5">
+              <h2 className="font-display text-xs font-semibold text-white">
+                Surface Outposts, Rovers & Orbital Assets ({missions.length})
               </h2>
-              <p className="text-[11px] text-[#9aa0a6]">
-                Historical NASA/CNSA archives with official NASA-3D-Resources GLB spacecraft models.
+              <p className="text-[11px] text-slate-400">
+                Historical NASA/CNSA landing sites and active UHF orbital relay craft.
               </p>
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {(['all', 'Rover', 'Lander', 'Helicopter', 'Orbiter'] as const).map((cat) => (
@@ -448,10 +462,10 @@ export default function LeftSidebar({
                     key={cat}
                     type="button"
                     onClick={() => setMissionFilter(cat)}
-                    className={`rounded-full border px-2.5 py-0.5 text-[10px] font-medium ${
+                    className={`rounded-md border px-2.5 py-0.5 text-[10px] font-medium ${
                       missionFilter === cat
-                        ? 'border-[#8ab4f8]/60 bg-[#8ab4f8]/15 text-[#8ab4f8]'
-                        : 'border-white/10 bg-[#303134] text-[#9aa0a6] hover:text-white'
+                        ? 'border-amber-500/60 bg-amber-500/15 text-amber-300'
+                        : 'border-slate-700/80 bg-[#111824] text-slate-400 hover:text-white'
                     }`}
                   >
                     {cat === 'all' ? `All (${missions.length})` : cat}
@@ -481,46 +495,46 @@ export default function LeftSidebar({
                 : 12000;
 
               return (
-                <div key={m.id} className="rounded-xl border border-white/10 bg-[#292a2d] p-3">
+                <div key={m.id} className="rounded-md border border-slate-700/70 bg-[#111824] p-3">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <span
-                          className="h-2.5 w-2.5 shrink-0 rounded-full"
+                          className="h-2.5 w-2.5 shrink-0 rounded-xs"
                           style={{ backgroundColor: m.color }}
                         />
                         <span className="truncate text-xs font-semibold text-white">{m.name}</span>
                       </div>
-                      <div className="mt-0.5 text-[10px] text-[#9aa0a6]">
+                      <div className="mt-0.5 text-[10px] text-slate-400">
                         {m.missionType} · {m.status} · {m.landingDate}
                         {m.endDate ? ` – ${m.endDate}` : ''}
                       </div>
                     </div>
 
                     <div className="flex items-center gap-1.5 shrink-0">
-                      <label className="flex cursor-pointer items-center gap-1 text-[10px] text-[#bdc1c6]">
+                      <label className="flex cursor-pointer items-center gap-1 text-[10px] text-slate-300">
                         <input
                           type="checkbox"
                           checked={isVisible}
                           onChange={() => onToggleMissionVisible(m.id)}
-                          className="accent-[#8ab4f8]"
+                          className="accent-amber-500"
                         />
                         Show
                       </label>
                       <button
                         type="button"
                         onClick={() => onFlyTo(flyLat, flyLon, flyAlt, m.name)}
-                        className="rounded-full border border-white/15 bg-[#303134] px-2.5 py-0.5 text-[10px] font-medium text-[#8ab4f8] hover:border-[#8ab4f8]"
+                        className="rounded-md border border-slate-700 bg-[#0B0F17] px-2.5 py-0.5 text-[10px] font-medium text-amber-300 hover:border-amber-500"
                       >
-                        Fly To
+                        Locate
                       </button>
                     </div>
                   </div>
 
-                  <p className="mt-2 text-[11px] leading-relaxed text-[#bdc1c6]">{m.description}</p>
+                  <p className="mt-2 text-[11px] leading-relaxed text-slate-300">{m.description}</p>
 
                   {m.modelSourceName && (
-                    <div className="mt-1.5 text-[10px] text-[#8ab4f8]">
+                    <div className="mt-1.5 text-[10px] text-cyan-300">
                       3D Model: {m.modelSourceName}
                     </div>
                   )}
@@ -606,19 +620,21 @@ export default function LeftSidebar({
           </div>
         )}
 
-        {/* TAB 3: GEOLOGY, POIS & SAVED LOCATIONS */}
+        {/* TAB 3: TERRAIN TARGETS, GEOLOGY & SAVED LOCATIONS */}
         {activeTab === 'geology' && (
           <div className="space-y-4">
             {/* Scientific POIs */}
             <div>
               <div className="mb-2 flex items-center justify-between">
-                <h2 className="text-xs font-semibold text-white">Scientific Points of Interest</h2>
+                <h2 className="font-display text-xs font-semibold text-white">
+                  Surface Waypoints & Field Targets
+                </h2>
                 <label className="flex cursor-pointer items-center gap-1.5 text-[11px] text-slate-300">
                   <input
                     type="checkbox"
                     checked={showPois}
                     onChange={onToggleShowPois}
-                    className="accent-cyan-400"
+                    className="accent-amber-500"
                   />
                   Show Pins
                 </label>
@@ -639,10 +655,10 @@ export default function LeftSidebar({
                     key={val}
                     type="button"
                     onClick={() => setPoiFilter(val)}
-                    className={`rounded-full border px-2.5 py-0.5 text-[10px] font-medium ${
+                    className={`rounded-md border px-2.5 py-0.5 text-[10px] font-medium ${
                       poiFilter === val
-                        ? 'border-[#8ab4f8]/60 bg-[#8ab4f8]/15 text-[#8ab4f8]'
-                        : 'border-white/10 bg-[#303134] text-[#9aa0a6] hover:text-white'
+                        ? 'border-amber-500/60 bg-amber-500/15 text-amber-300'
+                        : 'border-slate-700/80 bg-[#111824] text-slate-400 hover:text-white'
                     }`}
                   >
                     {lbl}
@@ -656,19 +672,19 @@ export default function LeftSidebar({
                     key={poi.id}
                     type="button"
                     onClick={() => onFlyTo(poi.lat, poi.lon, 5500, poi.name)}
-                    className="w-full rounded-xl border border-white/10 bg-[#292a2d] p-2.5 text-left transition-colors hover:border-[#8ab4f8]/50"
+                    className="w-full rounded-md border border-slate-700/70 bg-[#111824] p-2.5 text-left transition-colors hover:border-amber-500/50"
                   >
                     <div className="flex items-center justify-between gap-2">
                       <span className="flex items-center gap-1.5 font-medium text-white">
-                        <MapPin className="h-3 w-3 shrink-0 text-[#8ab4f8]" />
+                        <MapPin className="h-3 w-3 shrink-0 text-amber-400" />
                         <span className="truncate">{poi.name}</span>
                       </span>
-                      <span className="shrink-0 font-mono text-[10px] text-[#9aa0a6] tabular-nums">
+                      <span className="shrink-0 font-mono text-[10px] text-slate-400 tabular-nums">
                         {poi.elevationM} m
                       </span>
                     </div>
-                    <p className="mt-1 line-clamp-2 text-[10px] text-[#9aa0a6]">{poi.description}</p>
-                    <div className="mt-1 text-[10px] text-[#80868b]">
+                    <p className="mt-1 line-clamp-2 text-[10px] text-slate-400">{poi.description}</p>
+                    <div className="mt-1 text-[10px] text-slate-500">
                       {poi.associatedInstrument} · {poi.observationDate}
                     </div>
                   </button>
@@ -677,9 +693,9 @@ export default function LeftSidebar({
             </div>
 
             {/* Geological & Mineralogical Units */}
-            <div className="border-t border-white/10 pt-3">
-              <h3 className="mb-2 text-xs font-semibold text-white">
-                Geological & Mineralogical Units
+            <div className="border-t border-slate-800 pt-3">
+              <h3 className="mb-2 font-display text-xs font-semibold text-white">
+                Geological & Resource Units
               </h3>
               <div className="space-y-1.5">
                 {geologicalFeatures.map((g) => (
@@ -687,20 +703,20 @@ export default function LeftSidebar({
                     key={g.id}
                     type="button"
                     onClick={() => onFlyTo(g.lat, g.lon, 12000, g.name)}
-                    className="w-full rounded-xl border border-white/10 bg-[#292a2d] p-2.5 text-left transition-colors hover:border-white/25"
+                    className="w-full rounded-md border border-slate-700/70 bg-[#111824] p-2.5 text-left transition-colors hover:border-slate-500"
                   >
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2 min-w-0">
                         <span
-                          className="h-2.5 w-2.5 shrink-0 rounded-full"
+                          className="h-2.5 w-2.5 shrink-0 rounded-xs"
                           style={{ backgroundColor: g.color }}
                         />
                         <span className="truncate font-medium text-white">{g.name}</span>
                       </div>
-                      <span className="shrink-0 text-[10px] text-[#9aa0a6]">{g.observationDate}</span>
+                      <span className="shrink-0 text-[10px] text-slate-400">{g.observationDate}</span>
                     </div>
-                    <div className="mt-1 text-[10px] text-[#8ab4f8]">{g.evidenceStatus}</div>
-                    <p className="mt-1 text-[10px] leading-relaxed text-[#bdc1c6]">
+                    <div className="mt-1 text-[10px] text-cyan-300">{g.evidenceStatus}</div>
+                    <p className="mt-1 text-[10px] leading-relaxed text-slate-300">
                       {g.scientificSignificance}
                     </p>
                   </button>
@@ -709,20 +725,20 @@ export default function LeftSidebar({
             </div>
 
             {/* Saved Locations */}
-            <div className="border-t border-white/10 pt-3">
-              <h3 className="mb-2 text-xs font-semibold text-white">
-                Saved Exploration Sites ({savedLocations.length})
+            <div className="border-t border-slate-800 pt-3">
+              <h3 className="mb-2 font-display text-xs font-semibold text-white">
+                Bookmarked Survival Sites ({savedLocations.length})
               </h3>
               {savedLocations.length === 0 ? (
-                <p className="text-[11px] text-[#9aa0a6]">
-                  No saved sites yet. Click a location on the globe and select "Save" in the Location Knowledge Card.
+                <p className="text-[11px] text-slate-400">
+                  No bookmarked sites yet. Click a location on Mars and select "Bookmark" in the Site Survival Dossier.
                 </p>
               ) : (
                 <div className="space-y-1.5">
                   {savedLocations.map((loc, idx) => (
                     <div
                       key={`${loc.lat}-${loc.lon}-${idx}`}
-                      className="flex items-center justify-between rounded-xl border border-white/10 bg-[#292a2d] px-2.5 py-2"
+                      className="flex items-center justify-between rounded-md border border-slate-700/70 bg-[#111824] px-2.5 py-2"
                     >
                       <button
                         type="button"
@@ -732,14 +748,14 @@ export default function LeftSidebar({
                         <div className="truncate text-xs font-medium text-white">
                           {loc.label || `Site #${idx + 1}`}
                         </div>
-                        <div className="font-mono text-[10px] text-[#9aa0a6] tabular-nums">
+                        <div className="font-mono text-[10px] text-slate-400 tabular-nums">
                           {loc.lat.toFixed(4)}°N, {loc.lon.toFixed(4)}°E
                         </div>
                       </button>
                       <button
                         type="button"
                         onClick={() => onRemoveSavedLocation(idx)}
-                        className="ml-2 text-[#9aa0a6] hover:text-rose-400"
+                        className="ml-2 text-slate-400 hover:text-rose-400"
                         title="Remove saved site"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
@@ -751,8 +767,10 @@ export default function LeftSidebar({
             </div>
 
             {/* Famous Mars Landmarks */}
-            <div className="border-t border-white/10 pt-3">
-              <h3 className="mb-2 text-xs font-semibold text-white">Notable Mars Regions</h3>
+            <div className="border-t border-slate-800 pt-3">
+              <h3 className="mb-2 font-display text-xs font-semibold text-white">
+                Planetary Survival Sectors
+              </h3>
               <div className="grid grid-cols-1 gap-1.5">
                 {locations
                   .filter((l) => !l.region.includes('Jezero'))
@@ -761,10 +779,10 @@ export default function LeftSidebar({
                       key={loc.id}
                       type="button"
                       onClick={() => onFlyTo(loc.lat, loc.lon, 320000, loc.name)}
-                      className="flex items-center justify-between rounded-xl border border-white/8 bg-[#292a2d] px-3 py-1.5 text-left hover:border-white/25"
+                      className="flex items-center justify-between rounded-md border border-slate-800 bg-[#111824] px-3 py-1.5 text-left hover:border-amber-500/40"
                     >
-                      <span className="truncate text-[11px] text-[#e8eaed]">{loc.name}</span>
-                      <span className="font-mono text-[10px] text-[#9aa0a6] tabular-nums">
+                      <span className="truncate text-[11px] text-slate-200">{loc.name}</span>
+                      <span className="font-mono text-[10px] text-slate-400 tabular-nums">
                         {loc.elevationM ? `${loc.elevationM} m` : ''}
                       </span>
                     </button>
@@ -777,10 +795,12 @@ export default function LeftSidebar({
         {/* TAB 4: HISTORICAL ENVIRONMENTAL DATA */}
         {activeTab === 'environment' && (
           <div className="space-y-3">
-            <div className="border-b border-white/10 pb-2">
-              <h2 className="text-xs font-semibold text-white">Mars Environmental Records</h2>
-              <p className="mt-0.5 text-[11px] leading-snug text-[#9aa0a6]">
-                Historical sensor archives (MEDA, TWINS, REMS) vs modeled climatological estimates. InSight/rover readings are site-specific historical observations, not live Mars-wide weather.
+            <div className="border-b border-slate-800 pb-2">
+              <h2 className="font-display text-xs font-semibold text-white">
+                Atmospheric & Dust Survival Logs
+              </h2>
+              <p className="mt-0.5 text-[11px] leading-snug text-slate-400">
+                Historical sensor archives (MEDA, TWINS, REMS) vs modeled climatological estimates. Readings are site-specific historical observations, not live Mars-wide weather.
               </p>
             </div>
 
@@ -788,7 +808,7 @@ export default function LeftSidebar({
               <select
                 value={envMissionFilter}
                 onChange={(e) => setEnvMissionFilter(e.target.value)}
-                className="h-8 rounded-lg border border-white/10 bg-[#303134] px-2 text-[11px] text-[#e8eaed]"
+                className="h-8 rounded-md border border-slate-700/80 bg-[#111824] px-2 text-[11px] text-slate-200"
               >
                 <option value="all">All Locations</option>
                 <option value="perseverance">Jezero (Perseverance)</option>
@@ -799,7 +819,7 @@ export default function LeftSidebar({
               <select
                 value={envKindFilter}
                 onChange={(e) => setEnvKindFilter(e.target.value)}
-                className="h-8 rounded-lg border border-white/10 bg-[#303134] px-2 text-[11px] text-[#e8eaed]"
+                className="h-8 rounded-md border border-slate-700/80 bg-[#111824] px-2 text-[11px] text-slate-200"
               >
                 <option value="all">All Record Types</option>
                 <option value="Historical Measurement">Historical Measurements</option>
@@ -809,11 +829,11 @@ export default function LeftSidebar({
 
             <div className="space-y-2.5">
               {filteredEnv.map((rec) => (
-                <div key={rec.id} className="rounded-xl border border-white/10 bg-[#292a2d] p-3">
+                <div key={rec.id} className="rounded-md border border-slate-700/70 bg-[#111824] p-3">
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-semibold text-white">{rec.missionName}</span>
                     <span
-                      className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${
+                      className={`rounded-md border px-2 py-0.5 text-[10px] font-medium ${
                         rec.recordKind === 'Historical Measurement'
                           ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300'
                           : 'border-amber-500/40 bg-amber-500/10 text-amber-300'
@@ -876,45 +896,47 @@ export default function LeftSidebar({
           </div>
         )}
 
-        {/* TAB 5: INTELLIGENT ASTRONAUT ROUTE PLANNER */}
+        {/* TAB 5: EVA SURVIVAL TRAVERSE PLANNER */}
         {activeTab === 'routing' && (
           <div className="space-y-3">
-            <div className="border-b border-white/10 pb-2.5">
+            <div className="border-b border-slate-800 pb-2.5">
               <div className="flex items-center justify-between gap-2">
-                <h2 className="text-xs font-semibold text-white">Mars & Jezero EVA Route Planner</h2>
+                <h2 className="font-display text-xs font-semibold text-white">
+                  EVA Survival Traverse Planner
+                </h2>
                 {(routeStart || routeDest || hasActiveRoute) && (
                   <button
                     type="button"
                     onClick={onClearRoute}
-                    className="rounded-full border border-white/12 px-2 py-0.5 text-[10px] text-[#9aa0a6] hover:border-white/25 hover:text-white"
+                    className="rounded-md border border-slate-700 px-2 py-0.5 text-[10px] text-slate-400 hover:border-slate-500 hover:text-white"
                   >
                     Clear
                   </button>
                 )}
               </div>
-              <p className="mt-0.5 text-[11px] text-[#9aa0a6]">
+              <p className="mt-0.5 text-[11px] text-slate-400">
                 Terrain-aware 16-neighbor A* inside Jezero Crater DEM, or spherical great-circle geodesics anywhere on Mars.
               </p>
               <button
                 type="button"
                 onClick={onLoadJezeroDemo}
-                className="mt-2 rounded-full border border-[#8ab4f8]/35 bg-[#8ab4f8]/10 px-2.5 py-1 text-[10px] font-medium text-[#8ab4f8] hover:bg-[#8ab4f8]/20"
+                className="mt-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-2.5 py-1 text-[10px] font-medium text-amber-300 hover:bg-amber-500/20"
               >
                 Load Jezero EVA Demo (Butler → Bright Angel)
               </button>
             </div>
 
             {/* Start Point */}
-            <div className="rounded-xl border border-white/10 bg-[#292a2d] p-2.5">
+            <div className="rounded-md border border-slate-700/70 bg-[#111824] p-2.5">
               <div className="mb-1.5 flex items-center justify-between">
                 <span className="text-[11px] font-medium text-emerald-400">Starting Point</span>
                 <button
                   type="button"
                   onClick={() => onSetPickMode(pickMode === 'start' ? 'inspect' : 'start')}
-                  className={`rounded-full border px-2.5 py-0.5 text-[10px] font-medium ${
+                  className={`rounded-md border px-2.5 py-0.5 text-[10px] font-medium ${
                     pickMode === 'start'
                       ? 'border-emerald-400 bg-emerald-500/20 text-emerald-200'
-                      : 'border-white/15 text-[#bdc1c6] hover:border-emerald-500/60'
+                      : 'border-slate-700 text-slate-300 hover:border-emerald-500/60'
                   }`}
                 >
                   {pickMode === 'start' ? 'Click Globe...' : 'Pick on Globe'}
@@ -926,7 +948,7 @@ export default function LeftSidebar({
                   const found = ROUTE_PRESETS.find((p) => p.label === e.target.value);
                   if (found) onRouteStartChange(found.coord);
                 }}
-                className="mb-1.5 h-8 w-full rounded-lg border border-white/10 bg-[#303134] px-2.5 text-[11px] text-[#e8eaed]"
+                className="mb-1.5 h-8 w-full rounded-md border border-slate-700/80 bg-[#080B11] px-2.5 text-[11px] text-slate-100"
               >
                 <option value="">Choose starting site on Mars...</option>
                 {routeStart && matchPresetLabel(routeStart) === '__custom__' && (
@@ -949,7 +971,7 @@ export default function LeftSidebar({
                   ))}
                 </optgroup>
               </select>
-              <div className="font-mono text-[10px] text-[#bdc1c6] tabular-nums">
+              <div className="font-mono text-[10px] text-slate-400 tabular-nums">
                 {routeStart
                   ? `${routeStart.label ? `${routeStart.label} · ` : ''}${routeStart.lat.toFixed(4)}°, ${routeStart.lon.toFixed(4)}°`
                   : 'No start selected — choose preset or pick on globe'}
@@ -962,7 +984,7 @@ export default function LeftSidebar({
                 type="button"
                 disabled={!routeStart && !routeDest}
                 onClick={onSwapEndpoints}
-                className="inline-flex items-center gap-1 rounded-full border border-white/12 bg-[#303134] px-2.5 py-0.5 text-[10px] font-medium text-[#bdc1c6] hover:border-[#8ab4f8]/50 hover:text-white disabled:opacity-40"
+                className="inline-flex items-center gap-1 rounded-md border border-slate-700 bg-[#111824] px-2.5 py-0.5 text-[10px] font-medium text-slate-300 hover:border-amber-500/50 hover:text-white disabled:opacity-40"
                 title="Swap Start and Destination"
               >
                 <ArrowUpDown className="h-3 w-3" />
@@ -971,7 +993,7 @@ export default function LeftSidebar({
             </div>
 
             {/* Destination Point */}
-            <div className="rounded-xl border border-white/10 bg-[#292a2d] p-2.5">
+            <div className="rounded-md border border-slate-700/70 bg-[#111824] p-2.5">
               <div className="mb-1.5 flex items-center justify-between">
                 <span className="text-[11px] font-medium text-rose-400">Destination</span>
                 <button
@@ -979,10 +1001,10 @@ export default function LeftSidebar({
                   onClick={() =>
                     onSetPickMode(pickMode === 'destination' ? 'inspect' : 'destination')
                   }
-                  className={`rounded-full border px-2.5 py-0.5 text-[10px] font-medium ${
+                  className={`rounded-md border px-2.5 py-0.5 text-[10px] font-medium ${
                     pickMode === 'destination'
                       ? 'border-rose-400 bg-rose-500/20 text-rose-200'
-                      : 'border-white/15 text-[#bdc1c6] hover:border-rose-500/60'
+                      : 'border-slate-700 text-slate-300 hover:border-rose-500/60'
                   }`}
                 >
                   {pickMode === 'destination' ? 'Click Globe...' : 'Pick on Globe'}
@@ -994,7 +1016,7 @@ export default function LeftSidebar({
                   const found = ROUTE_PRESETS.find((p) => p.label === e.target.value);
                   if (found) onRouteDestChange(found.coord);
                 }}
-                className="mb-1.5 h-8 w-full rounded-lg border border-white/10 bg-[#303134] px-2.5 text-[11px] text-[#e8eaed]"
+                className="mb-1.5 h-8 w-full rounded-md border border-slate-700/80 bg-[#080B11] px-2.5 text-[11px] text-slate-100"
               >
                 <option value="">Choose destination anywhere on Mars...</option>
                 {routeDest && matchPresetLabel(routeDest) === '__custom__' && (
@@ -1017,7 +1039,7 @@ export default function LeftSidebar({
                   ))}
                 </optgroup>
               </select>
-              <div className="font-mono text-[10px] text-[#bdc1c6] tabular-nums">
+              <div className="font-mono text-[10px] text-slate-400 tabular-nums">
                 {routeDest
                   ? `${routeDest.label ? `${routeDest.label} · ` : ''}${routeDest.lat.toFixed(4)}°, ${routeDest.lon.toFixed(4)}°`
                   : 'No destination selected — choose preset or click Set Dest'}
@@ -1025,8 +1047,8 @@ export default function LeftSidebar({
             </div>
 
             {/* Route Strategy Mode */}
-            <div className="rounded-xl border border-white/10 bg-[#292a2d] p-2.5">
-              <div className="mb-1.5 text-[11px] font-medium text-[#bdc1c6]">Route Strategy</div>
+            <div className="rounded-md border border-slate-700/70 bg-[#111824] p-2.5">
+              <div className="mb-1.5 text-[11px] font-medium text-slate-300">Survival Route Strategy</div>
               <div className="grid grid-cols-1 gap-1.5">
                 {(
                   [
@@ -1041,10 +1063,10 @@ export default function LeftSidebar({
                     key={mode}
                     type="button"
                     onClick={() => onRouteModeChange(mode)}
-                    className={`rounded-lg border px-2.5 py-1.5 text-left text-[11px] font-medium transition-colors ${
+                    className={`rounded-md border px-2.5 py-1.5 text-left text-[11px] font-medium transition-colors ${
                       routeMode === mode
-                        ? 'border-[#8ab4f8]/60 bg-[#8ab4f8]/15 text-[#8ab4f8]'
-                        : 'border-white/8 bg-[#303134] text-[#bdc1c6] hover:border-white/20 hover:text-white'
+                        ? 'border-amber-500/70 bg-amber-500/15 text-amber-300'
+                        : 'border-slate-700/70 bg-[#080B11]/60 text-slate-300 hover:border-slate-500 hover:text-white'
                     }`}
                   >
                     {label}
@@ -1054,9 +1076,9 @@ export default function LeftSidebar({
             </div>
 
             {/* Configurable Cost Weights */}
-            <div className="rounded-xl border border-white/10 bg-[#292a2d] p-2.5">
-              <div className="mb-2 flex items-center gap-1.5 text-[11px] font-medium text-[#bdc1c6]">
-                <Sliders className="h-3.5 w-3.5 text-[#8ab4f8]" />
+            <div className="rounded-md border border-slate-700/70 bg-[#111824] p-2.5">
+              <div className="mb-2 flex items-center gap-1.5 text-[11px] font-medium text-slate-300">
+                <Sliders className="h-3.5 w-3.5 text-amber-400" />
                 Terrain Cost Model Weights
               </div>
               <div className="space-y-2">
@@ -1070,9 +1092,9 @@ export default function LeftSidebar({
                   ] as const
                 ).map(([key, label, min, max]) => (
                   <div key={key}>
-                    <div className="flex justify-between text-[10px] text-[#9aa0a6]">
+                    <div className="flex justify-between text-[10px] text-slate-400">
                       <span>{label}</span>
-                      <span className="font-mono text-[#e8eaed] tabular-nums">
+                      <span className="font-mono text-slate-200 tabular-nums">
                         {routeWeights[key].toFixed(2)}
                       </span>
                     </div>
@@ -1088,7 +1110,7 @@ export default function LeftSidebar({
                           [key]: parseFloat(e.target.value),
                         })
                       }
-                      className="h-1 w-full accent-[#8ab4f8]"
+                      className="h-1 w-full accent-amber-500"
                     />
                   </div>
                 ))}
@@ -1098,7 +1120,7 @@ export default function LeftSidebar({
             {/* Generate Actions */}
             <div className="grid grid-cols-1 gap-2">
               {(!routeStart || !routeDest) && (
-                <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-200">
+                <div className="rounded-md border border-amber-500/35 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-200">
                   Select both a <strong>Starting Point</strong> and a <strong>Destination</strong> above (or pick points on Mars) to compute a route.
                 </div>
               )}
@@ -1106,15 +1128,15 @@ export default function LeftSidebar({
                 type="button"
                 disabled={!routeStart || !routeDest}
                 onClick={onGenerateRoute}
-                className="w-full rounded-full bg-orange-600 px-3 py-2 text-xs font-semibold text-white hover:bg-orange-500 disabled:cursor-not-allowed disabled:opacity-45"
+                className="w-full rounded-md bg-amber-500 px-3 py-2 text-xs font-semibold text-slate-950 hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-45"
               >
-                Generate Route
+                Compute EVA Route
               </button>
               <button
                 type="button"
                 disabled={!routeStart || !routeDest}
                 onClick={onCompareAllRoutes}
-                className="w-full rounded-full border border-[#8ab4f8]/50 bg-[#8ab4f8]/15 px-3 py-2 text-xs font-medium text-[#8ab4f8] hover:bg-[#8ab4f8]/25 disabled:cursor-not-allowed disabled:opacity-45"
+                className="w-full rounded-md border border-amber-500/45 bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-300 hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-45"
               >
                 Compare All 5 Route Strategies
               </button>
@@ -1124,7 +1146,7 @@ export default function LeftSidebar({
                     <button
                       type="button"
                       onClick={onLaunchRoverSim}
-                      className="inline-flex w-full items-center justify-center gap-1.5 rounded-full border border-cyan-500/50 bg-cyan-500/15 px-3 py-2 text-xs font-semibold text-cyan-200 hover:bg-cyan-500/25"
+                      className="inline-flex w-full items-center justify-center gap-1.5 rounded-md border border-cyan-500/50 bg-cyan-500/15 px-3 py-2 text-xs font-semibold text-cyan-200 hover:bg-cyan-500/25"
                     >
                       <Truck className="h-3.5 w-3.5 text-cyan-400" />
                       Drive This Route in Rover Sim
@@ -1133,9 +1155,9 @@ export default function LeftSidebar({
                   <button
                     type="button"
                     onClick={onFrameActiveRoute}
-                    className="inline-flex w-full items-center justify-center gap-1.5 rounded-full border border-white/12 bg-[#303134] px-3 py-1.5 text-[11px] font-medium text-[#e8eaed] hover:bg-white/10"
+                    className="inline-flex w-full items-center justify-center gap-1.5 rounded-md border border-slate-700 bg-[#111824] px-3 py-1.5 text-[11px] font-medium text-slate-200 hover:border-amber-500/40"
                   >
-                    <Compass className="h-3.5 w-3.5 text-[#8ab4f8]" />
+                    <Compass className="h-3.5 w-3.5 text-amber-400" />
                     Zoom to Route on Globe
                   </button>
                 </>

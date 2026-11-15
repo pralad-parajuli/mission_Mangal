@@ -109,25 +109,25 @@ export default function FlightSimulatorHUD({
 
   if (status === 'menu') {
     return (
-      <div className="pointer-events-auto absolute inset-0 z-40 flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm">
-        <div className="w-full max-w-4xl overflow-hidden rounded-2xl border border-white/15 bg-[#0f1218]/92 shadow-2xl">
+      <div className="pointer-events-auto absolute inset-0 z-40 flex items-center justify-center bg-black/65 p-4 backdrop-blur-sm">
+        <div className="w-full max-w-4xl overflow-hidden rounded-lg border border-amber-500/25 bg-[#0B0F17]/95 shadow-2xl">
           {/* Header */}
-          <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
+          <div className="flex items-center justify-between border-b border-amber-500/15 bg-[#080B11]/80 px-6 py-4">
             <div>
-              <div className="text-[11px] font-medium tracking-wider text-orange-400 uppercase">
-                Mars Atmospheric Flight Deck
+              <div className="text-[10px] font-semibold tracking-wider text-amber-400 uppercase">
+                Atmospheric Recon & Flight Deck
               </div>
-              <h2 className="text-lg font-semibold tracking-tight text-white">
-                Mars Flight Simulator
+              <h2 className="font-display text-lg font-semibold tracking-tight text-slate-100">
+                Mars Recon Flight Simulator
               </h2>
-              <p className="mt-0.5 text-xs text-[#9aa0a6]">
+              <p className="mt-0.5 text-xs text-slate-400">
                 Fly NASA spacecraft over Mars terrain under 0.38g gravity and thin CO₂ aerodynamics.
               </p>
             </div>
             <button
               type="button"
               onClick={onExit}
-              className="flex h-8 w-8 items-center justify-center rounded-full border border-white/12 bg-white/5 text-[#bdc1c6] hover:bg-white/15 hover:text-white"
+              className="flex h-8 w-8 items-center justify-center rounded-md border border-white/12 bg-white/5 text-slate-300 hover:border-amber-500/35 hover:bg-white/10 hover:text-white"
               title="Exit Flight Simulator"
             >
               <X className="h-4 w-4" />

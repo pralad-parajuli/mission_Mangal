@@ -51,22 +51,27 @@ export default function RightSidebar({
 
   if (!selectedCoord) {
     return (
-      <aside className="flex h-full w-full flex-col overflow-hidden rounded-2xl border border-white/12 bg-[#202124]/95 p-4 text-xs text-[#9aa0a6] shadow-2xl backdrop-blur-md">
-        <div className="mb-3 flex items-center justify-between border-b border-white/10 pb-2.5">
-          <h2 className="text-sm font-semibold text-white">Location Knowledge Card</h2>
+      <aside className="flex h-full w-full flex-col overflow-hidden rounded-lg border border-amber-500/25 bg-[#0B0F17]/95 p-4 text-xs text-slate-400 shadow-2xl">
+        <div className="mb-3 flex items-center justify-between border-b border-amber-500/20 pb-2.5">
+          <div>
+            <div className="text-[10px] font-semibold tracking-wider text-amber-400 uppercase">
+              Interplanetary Survival Guide
+            </div>
+            <h2 className="font-display text-sm font-semibold text-white">Site Survival Dossier</h2>
+          </div>
           {onCloseMobile && (
             <button
               type="button"
               onClick={onCloseMobile}
-              className="flex h-7 w-7 items-center justify-center rounded-full text-[#9aa0a6] hover:bg-white/10 hover:text-white"
-              aria-label="Close Inspector"
+              className="flex h-7 w-7 items-center justify-center rounded-md text-slate-400 hover:bg-white/10 hover:text-white"
+              aria-label="Close Site Dossier"
             >
               <X className="h-4 w-4" />
             </button>
           )}
         </div>
         <p className="leading-relaxed">
-          Click any location on the 3D Mars globe to inspect coordinates, elevation provenance, slope and roughness risk, geological context, and nearby historical rover observations.
+          Select any coordinates on the 3D Mars terrain to assess EVA traversability, slope hazard class, atmospheric exposure conditions, geological deposits, and nearby rover field logs.
         </p>
       </aside>
     );
@@ -148,33 +153,35 @@ export default function RightSidebar({
       : null;
 
   return (
-    <aside className="flex h-full w-full flex-col overflow-y-auto rounded-2xl border border-white/12 bg-[#202124]/95 text-xs text-[#e8eaed] shadow-2xl backdrop-blur-md">
-      <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/10 bg-[#1b1c1f]/95 px-4 py-3 backdrop-blur-md">
+    <aside className="flex h-full w-full flex-col overflow-y-auto rounded-lg border border-amber-500/25 bg-[#0B0F17]/95 text-xs text-slate-200 shadow-2xl">
+      <div className="sticky top-0 z-10 flex items-center justify-between border-b border-amber-500/20 bg-[#080B11]/95 px-4 py-3 backdrop-blur-sm">
         <div className="min-w-0">
-          <div className="text-[11px] text-[#8ab4f8]">Location Knowledge Card</div>
-          <h2 className="truncate text-sm font-semibold text-white">
-            {selectedCoord.label || 'Selected Surface Point'}
+          <div className="text-[10px] font-semibold tracking-wider text-amber-400 uppercase">
+            Site Survival Dossier
+          </div>
+          <h2 className="truncate font-display text-sm font-semibold text-white">
+            {selectedCoord.label || 'Selected Surface Sector'}
           </h2>
         </div>
         {onCloseMobile && (
           <button
             type="button"
             onClick={onCloseMobile}
-            className="flex h-7 w-7 items-center justify-center rounded-full text-[#9aa0a6] hover:bg-white/10 hover:text-white"
-            aria-label="Close Inspector"
+            className="flex h-7 w-7 items-center justify-center rounded-md text-slate-400 hover:bg-white/10 hover:text-white"
+            aria-label="Close Site Dossier"
           >
             <X className="h-4 w-4" />
           </button>
         )}
       </div>
 
-      <div className="space-y-3.5 p-3.5">
+      <div className="space-y-3 p-3.5">
         {/* Route & Save Actions */}
         <div className="grid grid-cols-3 gap-1.5">
           <button
             type="button"
             onClick={() => onSetRouteStart(selectedCoord)}
-            className="flex items-center justify-center gap-1 rounded-full border border-white/12 bg-[#292a2d] px-2 py-1.5 text-[11px] font-medium text-emerald-300 hover:border-emerald-500/60 hover:bg-[#303134]"
+            className="flex items-center justify-center gap-1 rounded-md border border-slate-700/80 bg-[#111824] px-2 py-1.5 text-[11px] font-medium text-emerald-300 hover:border-emerald-500/60"
           >
             <Navigation className="h-3 w-3" />
             Set Start
@@ -182,7 +189,7 @@ export default function RightSidebar({
           <button
             type="button"
             onClick={() => onSetRouteDest(selectedCoord)}
-            className="flex items-center justify-center gap-1 rounded-full border border-white/12 bg-[#292a2d] px-2 py-1.5 text-[11px] font-medium text-rose-300 hover:border-rose-500/60 hover:bg-[#303134]"
+            className="flex items-center justify-center gap-1 rounded-md border border-slate-700/80 bg-[#111824] px-2 py-1.5 text-[11px] font-medium text-rose-300 hover:border-rose-500/60"
           >
             <Flag className="h-3 w-3" />
             Set Dest
@@ -190,18 +197,18 @@ export default function RightSidebar({
           <button
             type="button"
             onClick={() => onSaveLocation(selectedCoord)}
-            className="flex items-center justify-center gap-1 rounded-full border border-white/12 bg-[#292a2d] px-2 py-1.5 text-[11px] font-medium text-[#e8eaed] hover:border-[#8ab4f8]/60 hover:bg-[#303134]"
+            className="flex items-center justify-center gap-1 rounded-md border border-slate-700/80 bg-[#111824] px-2 py-1.5 text-[11px] font-medium text-slate-200 hover:border-amber-500/60"
           >
-            {isSaved ? <BookmarkCheck className="h-3 w-3 text-[#8ab4f8]" /> : <Bookmark className="h-3 w-3" />}
-            {isSaved ? 'Saved' : 'Save'}
+            {isSaved ? <BookmarkCheck className="h-3 w-3 text-amber-400" /> : <Bookmark className="h-3 w-3" />}
+            {isSaved ? 'Saved' : 'Bookmark'}
           </button>
         </div>
 
         {/* Coordinates & Telemetry Grid */}
-        <div className="rounded-xl border border-white/10 bg-[#292a2d] p-3">
+        <div className="rounded-md border border-slate-700/70 bg-[#111824] p-3">
           <div className="mb-2 flex items-center justify-between text-[11px] text-slate-400">
             <span>Mars 2000 Planetocentric</span>
-            <span className="font-mono">IAU Ellipsoid</span>
+            <span className="font-mono text-amber-400/90">IAU Datum</span>
           </div>
           <div className="grid grid-cols-2 gap-2 font-mono tabular-nums">
             <div>
@@ -239,36 +246,60 @@ export default function RightSidebar({
           </div>
         </div>
 
-        {/* Terrain Risk Assessment */}
-        <div className="rounded-xl border border-white/10 bg-[#292a2d] p-3">
+        {/* Terrain Risk & Survival Classification */}
+        <div className="rounded-md border border-slate-700/70 bg-[#111824] p-3">
           <div className="mb-2 flex items-center justify-between gap-2">
-            <span className="text-[11px] font-medium text-[#9aa0a6]">Terrain Risk</span>
-            <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${riskBadgeStyle}`}>
+            <span className="text-[11px] font-medium text-slate-300">EVA Hazard Rating</span>
+            <span className={`rounded-md border px-2 py-0.5 text-[10px] font-semibold ${riskBadgeStyle}`}>
               {riskLabel}
             </span>
           </div>
-          <ul className="space-y-1.5 text-[11px] leading-relaxed text-[#e8eaed]">
+          <ul className="space-y-1.5 text-[11px] leading-relaxed text-slate-200">
             {terrain.reasons.map((r, i) => (
               <li key={i} className="flex items-start gap-1.5">
-                <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-[#9aa0a6]" />
+                <span className="mt-1.5 h-1 w-1 shrink-0 rounded-xs bg-amber-400" />
                 <span>{r}</span>
               </li>
             ))}
           </ul>
-          <div className="mt-2.5 flex items-start gap-1.5 border-t border-white/10 pt-2 text-[10px] text-[#9aa0a6]">
+          <div className="mt-2.5 flex items-start gap-1.5 border-t border-slate-800 pt-2 text-[10px] text-slate-400">
             <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0 text-amber-400" />
             <span>
-              Orbital imagery and ~115 m DEM slopes cannot establish sub-meter soil bearing strength or wheel slip stability.
+              Orbital imagery and ~115 m DEM slopes cannot verify sub-meter regolith bearing strength or boulder traps.
             </span>
+          </div>
+        </div>
+
+        {/* Planetary Survival Protocol Summary */}
+        <div className="rounded-md border border-amber-500/25 bg-[#0D131E] p-3">
+          <div className="mb-1.5 text-[10px] font-semibold tracking-wider text-amber-400 uppercase">
+            Surface Survival Mandate
+          </div>
+          <div className="grid grid-cols-2 gap-2 font-mono text-[10px] tabular-nums">
+            <div>
+              <div className="text-slate-500">AMBIENT PRESSURE</div>
+              <div className="text-rose-300">~610 Pa · Suit Required</div>
+            </div>
+            <div>
+              <div className="text-slate-500">GRAVITY / RADIATION</div>
+              <div className="text-amber-300">0.38g · ~0.67 mSv/day</div>
+            </div>
+          </div>
+          <div className="mt-2 border-t border-slate-800/80 pt-1.5 text-[10px] leading-relaxed text-slate-300">
+            {terrain.riskLevel === 'high'
+              ? 'Survival Advisory: High-angle terrain. Avoid unpressurized foot EVA; use SEV pressurized rover or reroute via low-grade corridor.'
+              : terrain.riskLevel === 'moderate'
+              ? 'Survival Advisory: Moderate grade. Monitor wheel slip and battery thermal draw; confirm line-of-sight to MRO UHF relay.'
+              : 'Survival Advisory: Favorable surface geometry for rover transit and temporary field shelter deployment.'}
           </div>
         </div>
 
         {/* Nearest Rover Observation */}
         {nearestWp && nearestWp.distanceM <= 8000 && (
-          <div className="rounded-xl border border-white/10 bg-[#292a2d] p-3">
+          <div className="rounded-md border border-slate-700/70 bg-[#111824] p-3">
             <div className="mb-1.5 flex items-center justify-between">
-              <span className="text-[11px] font-medium text-orange-400">
-                Nearest Historical Rover Observation
+              <span className="text-[11px] font-medium text-amber-400">
+                Nearest Recon Rover Log
               </span>
               <span className="font-mono text-[10px] text-slate-400 tabular-nums">
                 {(nearestWp.distanceM / 1000).toFixed(2)} km away
@@ -286,7 +317,7 @@ export default function RightSidebar({
               <div className="mt-1.5 text-[11px] text-slate-300">Note: {nearestWp.wp.note}</div>
             )}
             {wpImage && !imgError && (
-              <div className="mt-2 overflow-hidden rounded-lg border border-white/10 bg-black">
+              <div className="mt-2 overflow-hidden rounded-md border border-slate-700 bg-black">
                 <img
                   src={wpImage.url}
                   alt={`${nearestWp.missionName} Sol ${nearestWp.wp.sol} ${wpImage.name}`}
@@ -294,46 +325,46 @@ export default function RightSidebar({
                   onError={() => setImgError(true)}
                   className="h-28 w-full object-cover"
                 />
-                <div className="px-2 py-1 text-[10px] text-[#9aa0a6]">
+                <div className="px-2 py-1 text-[10px] text-slate-400">
                   NASA/JPL Mastcam/Navcam Mosaic ({wpImage.name}) · Sol {nearestWp.wp.sol}
                 </div>
               </div>
             )}
-            <div className="mt-1.5 text-[10px] text-[#80868b]">
+            <div className="mt-1.5 text-[10px] text-slate-500">
               Source: NASA/JPL MMGIS Historical Localization Archive
             </div>
           </div>
         )}
 
         {/* Geological & Mineralogical Context */}
-        <div className="rounded-xl border border-white/10 bg-[#292a2d] p-3">
-          <h3 className="mb-2 text-[11px] font-medium text-[#9aa0a6]">
-            Geological & Mineral Observations
+        <div className="rounded-md border border-slate-700/70 bg-[#111824] p-3">
+          <h3 className="mb-2 text-[11px] font-medium text-slate-300">
+            Geological & Mineral Resources
           </h3>
           {nearbyGeology.length === 0 ? (
-            <p className="text-[11px] text-[#9aa0a6]">
+            <p className="text-[11px] text-slate-400">
               No cataloged Jezero geological/CRISM mineral unit polygon intersects this point. Refer to USGS SIM 3292 Global Geology layer for regional units.
             </p>
           ) : (
             <div className="space-y-2.5">
               {nearbyGeology.map(({ feature, distKm }) => (
-                <div key={feature.id} className="border-t border-white/10 pt-2 first:border-t-0 first:pt-0">
+                <div key={feature.id} className="border-t border-slate-800 pt-2 first:border-t-0 first:pt-0">
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-semibold text-white">{feature.name}</span>
-                    <span className="font-mono text-[10px] text-[#9aa0a6] tabular-nums">
+                    <span className="font-mono text-[10px] text-slate-400 tabular-nums">
                       {distKm < 0.2 ? 'Inside unit' : `${distKm.toFixed(1)} km`}
                     </span>
                   </div>
-                  <div className="mt-0.5 text-[10px] text-[#8ab4f8]">
+                  <div className="mt-0.5 text-[10px] text-cyan-300">
                     {feature.evidenceStatus} · {feature.observationDate}
                   </div>
-                  <p className="mt-1 text-[11px] leading-relaxed text-[#bdc1c6]">
+                  <p className="mt-1 text-[11px] leading-relaxed text-slate-300">
                     {feature.description}
                   </p>
-                  <div className="mt-1 text-[10px] text-[#9aa0a6]">
+                  <div className="mt-1 text-[10px] text-slate-400">
                     Observation: {feature.supportingObservation}
                   </div>
-                  <div className="mt-0.5 text-[10px] text-[#80868b]">Source: {feature.source}</div>
+                  <div className="mt-0.5 text-[10px] text-slate-500">Source: {feature.source}</div>
                 </div>
               ))}
             </div>
@@ -342,23 +373,23 @@ export default function RightSidebar({
 
         {/* Nearby Scientific POIs */}
         {nearbyPois.length > 0 && (
-          <div className="rounded-xl border border-white/10 bg-[#292a2d] p-3">
-            <h3 className="mb-2 text-[11px] font-medium text-[#9aa0a6]">
-              Nearby Scientific Targets (&lt; 3 km)
+          <div className="rounded-md border border-slate-700/70 bg-[#111824] p-3">
+            <h3 className="mb-2 text-[11px] font-medium text-slate-300">
+              Nearby Waypoints & Science Targets (&lt; 3 km)
             </h3>
             <div className="space-y-2">
               {nearbyPois.map(({ poi, distKm }) => (
-                <div key={poi.id} className="flex items-start justify-between gap-2 border-t border-white/10 pt-2 first:border-t-0 first:pt-0">
+                <div key={poi.id} className="flex items-start justify-between gap-2 border-t border-slate-800 pt-2 first:border-t-0 first:pt-0">
                   <div className="min-w-0">
                     <div className="flex items-center gap-1.5 font-medium text-white">
-                      <MapPin className="h-3 w-3 shrink-0 text-[#8ab4f8]" />
+                      <MapPin className="h-3 w-3 shrink-0 text-amber-400" />
                       <span className="truncate">{poi.name}</span>
                     </div>
-                    <div className="mt-0.5 text-[10px] text-[#9aa0a6]">
+                    <div className="mt-0.5 text-[10px] text-slate-400">
                       {poi.associatedInstrument} · {poi.observationDate}
                     </div>
                   </div>
-                  <span className="shrink-0 font-mono text-[10px] text-[#9aa0a6] tabular-nums">
+                  <span className="shrink-0 font-mono text-[10px] text-slate-400 tabular-nums">
                     {distKm.toFixed(2)} km
                   </span>
                 </div>

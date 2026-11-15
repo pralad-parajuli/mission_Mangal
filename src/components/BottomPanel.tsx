@@ -71,28 +71,28 @@ export default function BottomPanel({
     hoverIdx !== null && activeRoute.profile[hoverIdx] ? activeRoute.profile[hoverIdx] : null;
 
   return (
-    <section className="pointer-events-auto overflow-hidden rounded-2xl border border-white/12 bg-[#202124]/95 text-xs text-[#e8eaed] shadow-2xl backdrop-blur-md">
+    <section className="pointer-events-auto overflow-hidden rounded-lg border border-amber-500/25 bg-[#0B0F17]/95 text-xs text-slate-200 shadow-2xl">
       {/* Header Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 bg-[#1b1c1f]/90 px-3.5 py-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-500/20 bg-[#080B11] px-3.5 py-2">
         <div className="flex items-center gap-3 min-w-0">
           <button
             type="button"
             onClick={() => setCollapsed((c) => !c)}
-            className="flex items-center gap-1.5 font-semibold text-white hover:text-[#8ab4f8]"
+            className="flex items-center gap-1.5 font-display font-semibold text-white hover:text-amber-300"
           >
-            {collapsed ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            {collapsed ? <ChevronUp className="h-4 w-4 text-amber-400" /> : <ChevronDown className="h-4 w-4 text-amber-400" />}
             <span className="truncate max-w-[220px] sm:max-w-xs">{activeRoute.name}</span>
           </button>
 
-          <div className="hidden md:flex items-center gap-2.5 font-mono text-[11px] text-[#bdc1c6] tabular-nums">
+          <div className="hidden md:flex items-center gap-2.5 font-mono text-[11px] text-slate-300 tabular-nums">
             <span>{activeRoute.totalDistanceKm.toFixed(2)} km</span>
-            <span className="text-white/20">·</span>
+            <span className="text-slate-600">·</span>
             <span>
               +{activeRoute.totalAscentM.toFixed(0)} / -{activeRoute.totalDescentM.toFixed(0)} m
             </span>
-            <span className="text-white/20">·</span>
+            <span className="text-slate-600">·</span>
             <span>Max {activeRoute.maxSlopeDeg.toFixed(1)}°</span>
-            <span className="text-white/20">·</span>
+            <span className="text-slate-600">·</span>
             <span
               className={
                 activeRoute.overallDifficulty === 'low'
@@ -101,22 +101,22 @@ export default function BottomPanel({
                   ? 'text-amber-400'
                   : activeRoute.overallDifficulty === 'high'
                   ? 'text-rose-400'
-                  : 'text-[#9aa0a6]'
+                  : 'text-slate-400'
               }
             >
-              {activeRoute.overallDifficulty.toUpperCase()}
+              {activeRoute.overallDifficulty.toUpperCase()} RISK
             </span>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          <div className="flex items-center rounded-full border border-white/10 bg-[#292a2d] p-0.5">
+          <div className="flex items-center rounded-md border border-slate-700/80 bg-[#111824] p-0.5">
             {(
               [
                 ['profile', 'Profile'],
                 ['compare', `Compare (${routes.length})`],
                 ['hazards', `Hazards (${activeRoute.hazards.length})`],
-                ['science', `POIs (${activeRoute.nearbyPois.length})`],
+                ['science', `Targets (${activeRoute.nearbyPois.length})`],
               ] as const
             ).map(([id, label]) => (
               <button
@@ -126,10 +126,10 @@ export default function BottomPanel({
                   setSubTab(id);
                   setCollapsed(false);
                 }}
-                className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium whitespace-nowrap transition-colors ${
+                className={`rounded-xs px-2.5 py-0.5 text-[11px] font-medium whitespace-nowrap transition-colors ${
                   subTab === id
-                    ? 'bg-[#8ab4f8]/20 text-[#8ab4f8]'
-                    : 'text-[#9aa0a6] hover:text-white'
+                    ? 'bg-amber-500/20 text-amber-300'
+                    : 'text-slate-400 hover:text-white'
                 }`}
               >
                 {label}
@@ -141,7 +141,7 @@ export default function BottomPanel({
             <button
               type="button"
               onClick={onLaunchRoverSim}
-              className="inline-flex items-center gap-1.5 rounded-full border border-cyan-500/50 bg-cyan-500/15 px-3 py-1 text-[11px] font-semibold text-cyan-200 hover:bg-cyan-500/25 whitespace-nowrap"
+              className="inline-flex items-center gap-1.5 rounded-md border border-cyan-500/50 bg-cyan-500/15 px-3 py-1 text-[11px] font-semibold text-cyan-200 hover:bg-cyan-500/25 whitespace-nowrap"
               title="Drive this route in the 3D Rover Simulator"
             >
               <Truck className="h-3.5 w-3.5 text-cyan-400" />
@@ -152,17 +152,17 @@ export default function BottomPanel({
           <button
             type="button"
             onClick={onOpenReportModal}
-            className="inline-flex items-center gap-1.5 rounded-full bg-orange-600 px-3 py-1 text-[11px] font-semibold text-white hover:bg-orange-500 whitespace-nowrap"
+            className="inline-flex items-center gap-1.5 rounded-md bg-amber-500 px-3 py-1 text-[11px] font-semibold text-slate-950 hover:bg-amber-400 whitespace-nowrap"
           >
             <FileText className="h-3.5 w-3.5" />
-            Report
+            Field Brief
           </button>
 
           {onClose && (
             <button
               type="button"
               onClick={onClose}
-              className="flex h-7 w-7 items-center justify-center rounded-full text-[#9aa0a6] hover:bg-white/10 hover:text-white"
+              className="flex h-7 w-7 items-center justify-center rounded-md text-slate-400 hover:bg-white/10 hover:text-white"
               title="Close Elevation Profile Dock"
               aria-label="Close elevation dock"
             >
@@ -175,7 +175,7 @@ export default function BottomPanel({
       {!collapsed && (
         <div className="p-3">
           {activeRoute.isProvisional && (
-            <div className="mb-2.5 flex items-center gap-2 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-[11px] text-amber-200">
+            <div className="mb-2.5 flex items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-[11px] text-amber-200">
               <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-400" />
               <span>
                 <strong>Provisional Route:</strong> {activeRoute.provisionalReason}
@@ -186,7 +186,7 @@ export default function BottomPanel({
           {subTab === 'profile' && (
             <div className="grid grid-cols-1 gap-3 lg:grid-cols-12">
               <div className="lg:col-span-9">
-                <div className="relative rounded-xl border border-white/10 bg-[#292a2d] p-2">
+                <div className="relative rounded-md border border-slate-700/70 bg-[#111824] p-2">
                   <svg
                     viewBox={`0 0 ${svgW} ${svgH}`}
                     className="h-28 w-full select-none"
@@ -294,14 +294,14 @@ export default function BottomPanel({
                           y1={padT}
                           x2={toX(hoveredPoint.distanceKm)}
                           y2={padT + innerH}
-                          stroke="#8ab4f8"
+                          stroke="#f59e0b"
                           strokeWidth="1"
                         />
                         <circle
                           cx={toX(hoveredPoint.distanceKm)}
                           cy={toY(hoveredPoint.elevationM)}
                           r="4"
-                          fill="#8ab4f8"
+                          fill="#f59e0b"
                           stroke="#ffffff"
                           strokeWidth="1.5"
                         />
@@ -309,12 +309,12 @@ export default function BottomPanel({
                     )}
                   </svg>
 
-                  <div className="mt-1 flex flex-wrap items-center justify-between gap-2 text-[10px] text-[#9aa0a6]">
+                  <div className="mt-1 flex flex-wrap items-center justify-between gap-2 text-[10px] text-slate-400">
                     <span>
-                      Hover profile to pinpoint surface position. Highlighted bands mark steep grades (yellow ≥12°, red ≥15°).
+                      Hover profile to pinpoint surface position. Highlighted bands mark steep grades (amber ≥12°, red ≥15°).
                     </span>
                     {hoveredPoint && (
-                      <span className="font-mono text-[#8ab4f8] tabular-nums">
+                      <span className="font-mono text-amber-300 tabular-nums">
                         km {hoveredPoint.distanceKm.toFixed(2)} ·{' '}
                         {hoveredPoint.elevationM !== null
                           ? `${hoveredPoint.elevationM.toFixed(1)} m`
@@ -327,26 +327,26 @@ export default function BottomPanel({
               </div>
 
               <div className="grid grid-cols-2 gap-2 lg:col-span-3 font-mono tabular-nums">
-                <div className="rounded-xl border border-white/10 bg-[#292a2d] p-2">
-                  <div className="text-[10px] text-[#9aa0a6]">DISTANCE</div>
+                <div className="rounded-md border border-slate-700/70 bg-[#111824] p-2">
+                  <div className="text-[10px] text-slate-400">DISTANCE</div>
                   <div className="text-sm font-semibold text-white">
                     {activeRoute.totalDistanceKm.toFixed(2)} km
                   </div>
                 </div>
-                <div className="rounded-xl border border-white/10 bg-[#292a2d] p-2">
-                  <div className="text-[10px] text-[#9aa0a6]">MAX / MIN</div>
-                  <div className="text-xs font-semibold text-[#8ab4f8]">
+                <div className="rounded-md border border-slate-700/70 bg-[#111824] p-2">
+                  <div className="text-[10px] text-slate-400">MAX / MIN</div>
+                  <div className="text-xs font-semibold text-cyan-300">
                     {activeRoute.maxElevationM ?? '—'} / {activeRoute.minElevationM ?? '—'} m
                   </div>
                 </div>
-                <div className="rounded-xl border border-white/10 bg-[#292a2d] p-2">
-                  <div className="text-[10px] text-[#9aa0a6]">GAIN / LOSS</div>
-                  <div className="text-xs font-semibold text-[#e8eaed]">
+                <div className="rounded-md border border-slate-700/70 bg-[#111824] p-2">
+                  <div className="text-[10px] text-slate-400">GAIN / LOSS</div>
+                  <div className="text-xs font-semibold text-slate-100">
                     +{activeRoute.totalAscentM.toFixed(0)} / -{activeRoute.totalDescentM.toFixed(0)} m
                   </div>
                 </div>
-                <div className="rounded-xl border border-white/10 bg-[#292a2d] p-2">
-                  <div className="text-[10px] text-[#9aa0a6]">STEEP SEGS</div>
+                <div className="rounded-md border border-slate-700/70 bg-[#111824] p-2">
+                  <div className="text-[10px] text-slate-400">STEEP SEGS</div>
                   <div className="text-xs font-semibold text-amber-300">
                     {activeRoute.steepSectionsCount} (Max {activeRoute.maxSlopeDeg.toFixed(1)}°)
                   </div>
@@ -356,9 +356,9 @@ export default function BottomPanel({
           )}
 
           {subTab === 'compare' && (
-            <div className="max-h-36 overflow-y-auto rounded-xl border border-white/10 bg-[#292a2d]">
+            <div className="max-h-36 overflow-y-auto rounded-md border border-slate-700/70 bg-[#111824]">
               <table className="w-full text-left font-mono text-[11px] tabular-nums">
-                <thead className="border-b border-white/10 bg-[#1b1c1f]/70 text-[10px] text-[#9aa0a6]">
+                <thead className="border-b border-slate-700/80 bg-[#080B11] text-[10px] text-slate-400">
                   <tr>
                     <th className="px-3 py-1.5">Strategy</th>
                     <th className="px-3 py-1.5">Dist (km)</th>
@@ -374,13 +374,13 @@ export default function BottomPanel({
                     <tr
                       key={r.id}
                       onClick={() => onSelectRoute(r.id)}
-                      className={`cursor-pointer border-b border-white/5 hover:bg-white/8 ${
-                        r.id === activeRoute.id ? 'bg-[#8ab4f8]/15' : ''
+                      className={`cursor-pointer border-b border-slate-800/80 hover:bg-white/5 ${
+                        r.id === activeRoute.id ? 'bg-amber-500/15' : ''
                       }`}
                     >
                       <td className="px-3 py-1.5 font-sans font-medium text-white">
                         <span
-                          className="mr-2 inline-block h-2 w-2 rounded-full"
+                          className="mr-2 inline-block h-2 w-2 rounded-xs"
                           style={{ backgroundColor: r.color }}
                         />
                         {r.name}
@@ -401,25 +401,25 @@ export default function BottomPanel({
           {subTab === 'hazards' && (
             <div className="max-h-36 space-y-1.5 overflow-y-auto">
               {activeRoute.hazards.length === 0 ? (
-                <div className="rounded-xl border border-white/10 bg-[#292a2d] p-3 text-[#9aa0a6]">
+                <div className="rounded-md border border-slate-700/70 bg-[#111824] p-3 text-slate-400">
                   No major grid-scale hazards (&ge;12° slope or mapped crater/dune hazards) along this path. Sub-meter rocks still require HiRISE validation.
                 </div>
               ) : (
                 activeRoute.hazards.map((hz) => (
                   <div
                     key={hz.id}
-                    className="flex items-start justify-between gap-3 rounded-xl border border-white/10 bg-[#292a2d] px-3 py-2"
+                    className="flex items-start justify-between gap-3 rounded-md border border-slate-700/70 bg-[#111824] px-3 py-2"
                   >
                     <div>
                       <div className="font-semibold text-white">
                         {hz.type} · km {hz.distanceKm.toFixed(2)}
                       </div>
-                      <div className="text-[11px] text-[#9aa0a6]">{hz.detail}</div>
+                      <div className="text-[11px] text-slate-400">{hz.detail}</div>
                     </div>
                     <button
                       type="button"
                       onClick={() => onFlyToPoi(hz.lat, hz.lon, hz.type)}
-                      className="shrink-0 text-[11px] font-medium text-[#8ab4f8] hover:underline"
+                      className="shrink-0 text-[11px] font-medium text-amber-400 hover:underline"
                     >
                       Inspect
                     </button>
@@ -432,21 +432,21 @@ export default function BottomPanel({
           {subTab === 'science' && (
             <div className="max-h-36 space-y-1.5 overflow-y-auto">
               {activeRoute.nearbyPois.length === 0 ? (
-                <div className="rounded-xl border border-white/10 bg-[#292a2d] p-3 text-[#9aa0a6]">
+                <div className="rounded-md border border-slate-700/70 bg-[#111824] p-3 text-slate-400">
                   No cataloged scientific POIs within 1.5 km of this route. Try "Prioritize Scientific Targets" mode.
                 </div>
               ) : (
                 activeRoute.nearbyPois.map((poi) => (
                   <div
                     key={poi.id}
-                    className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-[#292a2d] px-3 py-2"
+                    className="flex items-center justify-between gap-3 rounded-md border border-slate-700/70 bg-[#111824] px-3 py-2"
                   >
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5 font-medium text-white">
-                        <MapPin className="h-3 w-3 shrink-0 text-[#8ab4f8]" />
+                        <MapPin className="h-3 w-3 shrink-0 text-amber-400" />
                         <span className="truncate">{poi.name}</span>
                       </div>
-                      <div className="truncate text-[11px] text-[#9aa0a6]">
+                      <div className="truncate text-[11px] text-slate-400">
                         {poi.distanceToRouteKm} km from route · {poi.associatedInstrument} ·{' '}
                         {poi.observationDate}
                       </div>
@@ -454,9 +454,9 @@ export default function BottomPanel({
                     <button
                       type="button"
                       onClick={() => onFlyToPoi(poi.lat, poi.lon, poi.name)}
-                      className="shrink-0 text-[11px] font-medium text-[#8ab4f8] hover:underline"
+                      className="shrink-0 text-[11px] font-medium text-amber-400 hover:underline"
                     >
-                      Fly To
+                      Locate
                     </button>
                   </div>
                 ))

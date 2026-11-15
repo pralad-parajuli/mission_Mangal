@@ -4580,7 +4580,7 @@ export default function MarsGlobe({
 
       {splitCompareLayerId && !flightSim?.active && !roverSim?.active && !satelliteSim?.active && (
         <div
-          className="pointer-events-auto absolute inset-y-0 z-10 w-0.5 bg-[#8ab4f8]"
+          className="pointer-events-auto absolute inset-y-0 z-10 w-0.5 bg-amber-400"
           style={{ left: `${splitPos * 100}%` }}
         >
           <input
@@ -4591,27 +4591,27 @@ export default function MarsGlobe({
             value={splitPos}
             onChange={(e) => setSplitPos(parseFloat(e.target.value))}
             aria-label="Layer comparison split slider"
-            className="absolute top-1/2 -left-16 w-32 -translate-y-1/2 cursor-ew-resize accent-[#8ab4f8]"
+            className="absolute top-1/2 -left-16 w-32 -translate-y-1/2 cursor-ew-resize accent-amber-400"
           />
         </div>
       )}
 
       {pickMode !== 'inspect' && !flightSim?.active && (
-        <div className="pointer-events-none absolute top-4 left-1/2 z-20 -translate-x-1/2 rounded-full border border-cyan-500/60 bg-[#202124]/95 px-4 py-1.5 text-xs font-medium text-cyan-200 shadow-xl backdrop-blur-md">
-          Click anywhere on Mars to set{' '}
-          <span className="font-semibold text-cyan-400">
+        <div className="pointer-events-none absolute top-4 left-1/2 z-20 -translate-x-1/2 rounded-md border border-amber-500/60 bg-[#0B0F17]/95 px-4 py-1.5 text-xs font-medium text-amber-200 shadow-xl">
+          Click anywhere on Mars to lock{' '}
+          <span className="font-semibold text-amber-400">
             {pickMode === 'start' ? 'Starting Point' : 'Destination'}
           </span>
         </div>
       )}
 
-      {/* Bottom-Left Google Earth Style Basemap Switcher Square */}
+      {/* Bottom-Left Tactical Surface Layer Switcher */}
       {!flightSim?.active && !roverSim?.active && !satelliteSim?.active && (
         <div className="absolute bottom-10 left-3 z-20">
           {basemapMenuOpen && (
-            <div className="mb-2 w-52 rounded-2xl border border-white/12 bg-[#202124]/95 p-2 text-xs text-[#e8eaed] shadow-2xl backdrop-blur-md">
-              <div className="px-2 py-1 text-[10px] font-medium text-[#9aa0a6]">
-                Quick Basemap View
+            <div className="mb-2 w-52 rounded-lg border border-amber-500/25 bg-[#0B0F17]/95 p-2 text-xs text-slate-200 shadow-2xl">
+              <div className="px-2 py-1 text-[10px] font-semibold tracking-wider text-amber-400 uppercase">
+                Surface Basemap Sensor
               </div>
               {(
                 [
@@ -4630,8 +4630,8 @@ export default function MarsGlobe({
                       onSelectBasemap?.(id);
                       setBasemapMenuOpen(false);
                     }}
-                    className={`mt-1 flex w-full items-center justify-between rounded-xl px-2.5 py-2 text-left transition-colors ${
-                      active ? 'bg-[#8ab4f8]/20 text-[#8ab4f8]' : 'hover:bg-white/10'
+                    className={`mt-1 flex w-full items-center justify-between rounded-md px-2.5 py-2 text-left transition-colors ${
+                      active ? 'bg-amber-500/20 text-amber-300' : 'hover:bg-white/10'
                     }`}
                   >
                     <span className="font-medium">{title}</span>
@@ -4645,7 +4645,7 @@ export default function MarsGlobe({
           <button
             type="button"
             onClick={() => setBasemapMenuOpen((v) => !v)}
-            className="group relative flex h-12 w-12 items-end justify-center overflow-hidden rounded-xl border-2 border-white/25 bg-[#202124] shadow-xl transition-transform hover:scale-105 hover:border-[#8ab4f8]"
+            className="group relative flex h-12 w-12 items-end justify-center overflow-hidden rounded-lg border border-amber-500/40 bg-[#0B0F17] shadow-xl transition-transform hover:scale-105 hover:border-amber-400"
             title={`Switch Mars Basemap (${activeBasemapLabel})`}
           >
             <div
@@ -4656,20 +4656,20 @@ export default function MarsGlobe({
               }}
             />
             <Layers className="relative z-10 mb-3 h-4 w-4 text-white/90 drop-shadow" />
-            <span className="relative z-10 w-full bg-black/75 py-0.5 text-center text-[9px] font-medium text-white truncate px-0.5">
+            <span className="relative z-10 w-full bg-black/80 py-0.5 text-center text-[9px] font-medium text-amber-200 truncate px-0.5">
               {activeBasemapLabel.split(' ')[0]}
             </span>
           </button>
         </div>
       )}
 
-      {/* Bottom-Right Google Earth Navigation Cluster (Surface Fly-In, North Compass, 3D/2D, Zoom -/+) */}
+      {/* Bottom-Right Survival Navigation Cluster (Jezero Recon, North Compass, 3D/2D, Zoom -/+) */}
       {!flightSim?.active && !roverSim?.active && !satelliteSim?.active && (
         <div className="absolute bottom-10 right-3 z-20 flex items-center gap-2">
           <button
             type="button"
             onClick={handleFlyJezeroSurface}
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-white/12 bg-[#292a2d]/92 text-orange-400 shadow-lg backdrop-blur-md transition-colors hover:bg-[#3c4043] hover:text-orange-300"
+            className="flex h-9 w-9 items-center justify-center rounded-md border border-amber-500/30 bg-[#0B0F17]/95 text-amber-400 shadow-lg transition-colors hover:border-amber-400 hover:text-amber-300"
             title="Fly to Jezero Crater 3D Surface View (Perseverance & Delta)"
           >
             <Navigation className="h-4 w-4" />
@@ -4678,10 +4678,10 @@ export default function MarsGlobe({
           <button
             type="button"
             onClick={handleToggle3dView}
-            className={`flex h-9 w-9 items-center justify-center rounded-full border text-[11px] font-bold shadow-lg backdrop-blur-md transition-colors ${
+            className={`flex h-9 w-9 items-center justify-center rounded-md border text-[11px] font-bold shadow-lg transition-colors ${
               settings.enable3dTerrain
-                ? 'border-[#8ab4f8]/50 bg-[#292a2d]/95 text-[#8ab4f8] hover:bg-[#3c4043]'
-                : 'border-white/12 bg-[#292a2d]/92 text-[#9aa0a6] hover:bg-[#3c4043] hover:text-white'
+                ? 'border-amber-500/60 bg-[#0B0F17]/95 text-amber-300 hover:border-amber-400'
+                : 'border-slate-700 bg-[#0B0F17]/95 text-slate-400 hover:border-slate-500 hover:text-white'
             }`}
             title="Toggle 3D Terrain & Tilted Perspective"
           >
@@ -4691,7 +4691,7 @@ export default function MarsGlobe({
           <button
             type="button"
             onClick={handleResetNorth}
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-white/12 bg-[#292a2d]/92 text-[#e8eaed] shadow-lg backdrop-blur-md transition-colors hover:bg-[#3c4043]"
+            className="flex h-9 w-9 items-center justify-center rounded-md border border-slate-700/80 bg-[#0B0F17]/95 text-slate-200 shadow-lg transition-colors hover:border-amber-500/50"
             title="Reset Camera Heading to North"
           >
             <div
@@ -4702,21 +4702,21 @@ export default function MarsGlobe({
             </div>
           </button>
 
-          <div className="flex h-9 items-center overflow-hidden rounded-full border border-white/12 bg-[#292a2d]/92 shadow-lg backdrop-blur-md">
+          <div className="flex h-9 items-center overflow-hidden rounded-md border border-slate-700/80 bg-[#0B0F17]/95 shadow-lg">
             <button
               type="button"
               onClick={() => handleZoom(-1)}
-              className="flex h-full w-9 items-center justify-center text-[#e8eaed] hover:bg-[#3c4043]"
+              className="flex h-full w-9 items-center justify-center text-slate-200 hover:bg-white/10"
               title="Zoom Out"
               aria-label="Zoom Out"
             >
               <Minus className="h-4 w-4" />
             </button>
-            <div className="h-4 w-px bg-white/12" />
+            <div className="h-4 w-px bg-slate-700" />
             <button
               type="button"
               onClick={() => handleZoom(1)}
-              className="flex h-full w-9 items-center justify-center text-[#e8eaed] hover:bg-[#3c4043]"
+              className="flex h-full w-9 items-center justify-center text-slate-200 hover:bg-white/10"
               title="Zoom In"
               aria-label="Zoom In"
             >
@@ -4726,44 +4726,45 @@ export default function MarsGlobe({
         </div>
       )}
 
-      {/* Very Bottom Google Earth Attribution + Dynamic Scale Bar + Live Telemetry Strip */}
+      {/* Very Bottom Survival Datum + Dynamic Scale Bar + Live Telemetry Strip */}
       {!flightSim?.active && !roverSim?.active && !satelliteSim?.active && (
-        <div className="absolute inset-x-0 bottom-0 z-20 flex h-7 items-center justify-between border-t border-white/10 bg-[#17181b]/92 px-3 text-[11px] text-[#bdc1c6] backdrop-blur-sm select-none">
+        <div className="absolute inset-x-0 bottom-0 z-20 flex h-7 items-center justify-between border-t border-amber-500/20 bg-[#080B11]/95 px-3 text-[11px] text-slate-300 select-none">
           <div className="flex items-center gap-3">
-            <span className="font-semibold tracking-tight text-white">NASA / USGS</span>
-            <span className="hidden sm:inline font-mono text-[10px] text-[#9aa0a6]">100%</span>
+            <span className="font-display font-semibold tracking-wide text-amber-300">
+              SURVIVAL DATUM · NASA / USGS
+            </span>
             <button
               type="button"
               onClick={() => onOpenSettings?.()}
-              className="underline decoration-white/40 hover:text-white"
+              className="underline decoration-amber-500/40 hover:text-white"
             >
-              Data attribution
+              Calibration & attribution
             </button>
           </div>
 
           <div className="flex items-center gap-4 font-mono text-[11px] tabular-nums">
-            {/* Google Earth Style Metric Bracket Scale Bar */}
-            <div className="hidden sm:flex items-center gap-1.5 text-[10px] text-[#e8eaed]">
+            {/* Metric Bracket Scale Bar */}
+            <div className="hidden sm:flex items-center gap-1.5 text-[10px] text-slate-200">
               <span>{scaleBar.label}</span>
               <div
-                className="h-1.5 border-x border-b border-[#e8eaed]/80"
+                className="h-1.5 border-x border-b border-amber-400/80"
                 style={{ width: `${scaleBar.widthPx}px` }}
               />
             </div>
 
-            <span className="text-[#e8eaed]">
-              Camera: {cameraAltKm >= 100 ? Math.round(cameraAltKm).toLocaleString() : cameraAltKm.toFixed(1)} km
+            <span className="text-slate-200">
+              ALT: {cameraAltKm >= 100 ? Math.round(cameraAltKm).toLocaleString() : cameraAltKm.toFixed(1)} km
             </span>
 
             {cursorFormatted ? (
-              <span className="hidden md:inline text-[#e8eaed]">
+              <span className="hidden md:inline text-cyan-300">
                 {cursorFormatted.latStr} {cursorFormatted.lonStr}
                 {cursorCoord?.elevM !== null && cursorCoord?.elevM !== undefined
                   ? ` · ${cursorCoord.elevM.toFixed(0)} m`
                   : ''}
               </span>
             ) : (
-              <span className="hidden md:inline text-[#9aa0a6]">Mars 2000 Planetocentric</span>
+              <span className="hidden md:inline text-slate-400">Mars 2000 Planetocentric</span>
             )}
           </div>
         </div>
